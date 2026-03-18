@@ -40,6 +40,11 @@ constexpr uint32_t TOUCH_POLL_IDLE_MS = 500;
 // Light sleep wake interval for servicing WebSocket when idle
 constexpr uint32_t SLEEP_WAKE_INTERVAL_MS = 5000;
 
+// Touch feedback
+constexpr bool BUZZER_FEEDBACK_ENABLED = true;
+constexpr uint16_t BUZZER_FREQ_HZ = 3000;
+constexpr uint8_t BUZZER_DURATION_MS = 15;
+
 // Other constants
 constexpr size_t MAX_ENTITIES = 16;
 constexpr size_t MAX_WIDGETS_PER_SCREEN = 8;

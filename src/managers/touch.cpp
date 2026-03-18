@@ -64,6 +64,9 @@ void touch_task(void* arg) {
                 touching = true;
                 for (size_t widget_idx = 0; widget_idx < screen->widget_count; widget_idx++) {
                     if (screen->widgets[widget_idx]->isTouching(&touch_event)) {
+                        if (BUZZER_FEEDBACK_ENABLED && BUZZER_PIN) {
+                            tone(BUZZER_PIN, BUZZER_FREQ_HZ, BUZZER_DURATION_MS);
+                        }
                         ESP_LOGI(TAG, "Starting touch on widget %d", widget_idx);
                         active_widget = widget_idx;
 
