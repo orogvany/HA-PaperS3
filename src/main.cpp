@@ -1,11 +1,13 @@
 #include "boards.h"
 #include "config_remote.h"
 #include "constants.h"
+#include "draw.h"
 #include "driver/gpio.h"
 #include "esp_sleep.h"
 #include "esp_freertos_hooks.h"
 #include <Wire.h>
 #include "managers/battery.h"
+#include "managers/power.h"
 #include "managers/home_assistant.h"
 #include "managers/touch.h"
 #include "managers/ui.h"
@@ -35,12 +37,42 @@ static bool idle_hook() {
 }
 
 void setup() {
-    // Put BMI270 gyroscope into suspend mode (~3.5µA vs ~950µA)
     Wire.begin(TOUCH_SDA, TOUCH_SCL);
+
+    // Put BMI270 gyroscope into suspend mode (~3.5µA vs ~950µA)
     Wire.beginTransmission(0x68);
     Wire.write(0x7D); // PWR_CTRL register
     Wire.write(0x00); // Disable accelerometer and gyroscope
     Wire.endTransmission();
+
+    // Check if this is an RTC wake from PMS150G power-off
+    if (HAS_PMS150G && PMS150G_AUTO_SHUTDOWN_ENABLED && power_was_rtc_wake()) {
+        power_clear_rtc_flag();
+
+        // Initialize display just enough to draw idle screen
+        static FASTEPD idle_epaper;
+        idle_epaper.initPanel(DISPLAY_PANEL);
+        idle_epaper.setPanelSize(DISPLAY_HEIGHT, DISPLAY_WIDTH);
+        idle_epaper.setRotation(90);
+        idle_epaper.einkPower(true);
+
+        // Read RTC seconds for pseudo-random position offset
+        Wire.beginTransmission(BM8563_ADDR);
+        Wire.write(0x02); // Seconds register
+        Wire.endTransmission(false);
+        Wire.requestFrom((uint8_t)BM8563_ADDR, (uint8_t)1);
+        uint8_t rtc_sec = Wire.available() ? Wire.read() : 0;
+        int16_t offset_x = (int16_t)((rtc_sec * 7) % 100) - 50;
+        int16_t offset_y = (int16_t)((rtc_sec * 13) % 80) - 40;
+
+        drawIdleScreen(&idle_epaper, offset_x, offset_y);
+
+        // Set next wake timer and power off again
+        power_setup_rtc_timer(PMS150G_RTC_WAKE_INTERVAL_MIN);
+        power_off_pms150g();
+
+        // If power-off failed (e.g., USB connected), fall through to normal boot
+    }
 
     // Configure light sleep wake sources
     esp_sleep_enable_timer_wakeup(SLEEP_WAKE_INTERVAL_MS * 1000);

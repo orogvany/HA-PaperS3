@@ -81,3 +81,23 @@ void drawBatteryIndicator(FASTEPD* epaper, uint8_t percentage, bool charging) {
     epaper->setCursor(text_x, y + (BATT_ICON_H + text_rect.h) / 2 - 2);
     epaper->write(label);
 }
+
+void drawIdleScreen(FASTEPD* epaper, uint16_t offset_x, uint16_t offset_y) {
+    epaper->setMode(BB_MODE_4BPP);
+    epaper->fillScreen(0xf);
+
+    BB_RECT rect;
+    epaper->setFont(Montserrat_Regular_26);
+    epaper->setTextColor(BBEP_BLACK);
+
+    const char* line = "Press button to wake";
+    epaper->getStringBox(line, &rect);
+
+    uint16_t x = (DISPLAY_HEIGHT - rect.w) / 2 + offset_x;
+    uint16_t y = (DISPLAY_WIDTH - rect.h) / 2 + offset_y;
+
+    epaper->setCursor(x, y);
+    epaper->write(line);
+
+    epaper->fullUpdate(CLEAR_SLOW, false);
+}

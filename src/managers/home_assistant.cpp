@@ -1,10 +1,14 @@
+#include "boards.h"
 #include "config.h"
 #include "constants.h"
+#include "draw.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "managers/home_assistant.h"
+#include "managers/power.h"
 #include "store.h"
+#include <FastEPD.h>
 #include <WiFi.h>
 #include <WebSocketsClient.h>
 #include <cJSON.h>
@@ -472,6 +476,24 @@ void home_assistant_task(void* arg) {
                 store->wifi_idle_disconnected = true;
                 hass_update_state(hass, ConnState::ConnectionError);
                 continue;
+            }
+        }
+
+        // Check for deep idle → PMS150G shutdown
+        if (wifi_is_off && HAS_PMS150G && PMS150G_AUTO_SHUTDOWN_ENABLED && store->last_touch_ms > 0) {
+            uint32_t idle_ms = millis() - store->last_touch_ms;
+            if (idle_ms > PMS150G_SHUTDOWN_IDLE_MS) {
+                ESP_LOGI(TAG, "Deep idle timeout, entering PMS150G shutdown");
+
+                static FASTEPD shutdown_epaper;
+                shutdown_epaper.initPanel(DISPLAY_PANEL);
+                shutdown_epaper.setPanelSize(DISPLAY_HEIGHT, DISPLAY_WIDTH);
+                shutdown_epaper.setRotation(90);
+                shutdown_epaper.einkPower(true);
+                drawIdleScreen(&shutdown_epaper, 0, 0);
+
+                power_setup_rtc_timer(PMS150G_RTC_WAKE_INTERVAL_MIN);
+                power_off_pms150g();
             }
         }
 

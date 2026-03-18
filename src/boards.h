@@ -12,7 +12,10 @@ constexpr size_t TOUCH_INT = 3;
 constexpr size_t TOUCH_RST = 9;
 constexpr int DISPLAY_PANEL = BB_PANEL_EPDIY_V7;
 constexpr bool HAS_BATTERY_ADC = false;
-constexpr uint8_t BUZZER_PIN = 0; // No buzzer on LilyGo T5
+constexpr uint8_t BUZZER_PIN = 0;
+constexpr bool HAS_PMS150G = false;
+constexpr uint8_t PWROFF_PIN = 0;
+constexpr uint8_t BM8563_ADDR = 0x51;
 #endif
 
 #ifdef TARGET_M5PAPER_S3
@@ -25,4 +28,7 @@ constexpr size_t TOUCH_RST = 0;
 constexpr int DISPLAY_PANEL = BB_PANEL_M5PAPERS3;
 constexpr bool HAS_BATTERY_ADC = true;
 constexpr uint8_t BUZZER_PIN = 21;
+constexpr bool HAS_PMS150G = true;
+constexpr uint8_t PWROFF_PIN = 44;
+constexpr uint8_t BM8563_ADDR = 0x51;
 #endif
