@@ -150,6 +150,32 @@ void store_set_battery(EntityStore* store, uint16_t voltage_mv, uint8_t percenta
     }
 }
 
+void store_set_last_touch(EntityStore* store, uint32_t ms) {
+    xSemaphoreTake(store->mutex, portMAX_DELAY);
+    store->last_touch_ms = ms;
+    xSemaphoreGive(store->mutex);
+}
+
+uint32_t store_get_last_touch(EntityStore* store) {
+    xSemaphoreTake(store->mutex, portMAX_DELAY);
+    uint32_t ms = store->last_touch_ms;
+    xSemaphoreGive(store->mutex);
+    return ms;
+}
+
+void store_set_wifi_idle(EntityStore* store, bool idle) {
+    xSemaphoreTake(store->mutex, portMAX_DELAY);
+    store->wifi_idle_disconnected = idle;
+    xSemaphoreGive(store->mutex);
+}
+
+bool store_get_wifi_idle(EntityStore* store) {
+    xSemaphoreTake(store->mutex, portMAX_DELAY);
+    bool idle = store->wifi_idle_disconnected;
+    xSemaphoreGive(store->mutex);
+    return idle;
+}
+
 void store_flush_pending_commands(EntityStore* store) {
     xSemaphoreTake(store->mutex, portMAX_DELAY);
     for (uint8_t entity_idx = 0; entity_idx < store->entity_count; ++entity_idx) {

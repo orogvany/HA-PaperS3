@@ -82,7 +82,7 @@ void drawBatteryIndicator(FASTEPD* epaper, uint8_t percentage, bool charging) {
     epaper->write(label);
 }
 
-void drawIdleScreen(FASTEPD* epaper, uint16_t offset_x, uint16_t offset_y) {
+void drawIdleScreen(FASTEPD* epaper, int16_t offset_x, int16_t offset_y) {
     epaper->setMode(BB_MODE_4BPP);
     epaper->fillScreen(0xf);
 
@@ -93,8 +93,10 @@ void drawIdleScreen(FASTEPD* epaper, uint16_t offset_x, uint16_t offset_y) {
     const char* line = "Press button to wake";
     epaper->getStringBox(line, &rect);
 
-    uint16_t x = (DISPLAY_HEIGHT - rect.w) / 2 + offset_x;
-    uint16_t y = (DISPLAY_WIDTH - rect.h) / 2 + offset_y;
+    int16_t cx = (DISPLAY_HEIGHT - rect.w) / 2 + offset_x;
+    int16_t cy = (DISPLAY_WIDTH - rect.h) / 2 + offset_y;
+    uint16_t x = (uint16_t)std::max((int16_t)0, std::min(cx, (int16_t)(DISPLAY_HEIGHT - rect.w)));
+    uint16_t y = (uint16_t)std::max((int16_t)0, std::min(cy, (int16_t)(DISPLAY_WIDTH - rect.h)));
 
     epaper->setCursor(x, y);
     epaper->write(line);

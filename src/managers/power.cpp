@@ -8,22 +8,28 @@
 static const char* TAG = "power";
 
 void power_setup_rtc_timer(uint8_t minutes) {
-    // Clear timer flag and enable timer interrupt
-    Wire.beginTransmission(BM8563_ADDR);
-    Wire.write(0x01); // Control_Status_2
-    Wire.write(0x01); // TIE=1 (timer interrupt enable), clear TF
-    Wire.endTransmission();
-
-    // Set timer frequency to 1/60 Hz (1 tick = 1 minute)
+    // Disable timer first to prevent spurious interrupt from stale value
     Wire.beginTransmission(BM8563_ADDR);
     Wire.write(0x0E); // Timer_Control
-    Wire.write(0x83); // TE=1 (enable), TD=11 (1/60 Hz)
+    Wire.write(0x03); // TE=0 (disabled), TD=11 (1/60 Hz)
     Wire.endTransmission();
 
     // Set timer countdown value
     Wire.beginTransmission(BM8563_ADDR);
     Wire.write(0x0F); // Timer register
     Wire.write(minutes);
+    Wire.endTransmission();
+
+    // Clear timer flag and enable timer interrupt
+    Wire.beginTransmission(BM8563_ADDR);
+    Wire.write(0x01); // Control_Status_2
+    Wire.write(0x01); // TIE=1 (timer interrupt enable), clear TF
+    Wire.endTransmission();
+
+    // Enable timer
+    Wire.beginTransmission(BM8563_ADDR);
+    Wire.write(0x0E); // Timer_Control
+    Wire.write(0x83); // TE=1 (enable), TD=11 (1/60 Hz)
     Wire.endTransmission();
 
     ESP_LOGI(TAG, "RTC timer set for %d minutes", minutes);

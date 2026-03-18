@@ -58,8 +58,8 @@ struct EntityStore {
     HomeAssistantEntity entities[MAX_ENTITIES];
     uint8_t entity_count;
 
-    volatile uint32_t last_touch_ms = 0;
-    volatile bool wifi_idle_disconnected = false;
+    uint32_t last_touch_ms = 0;
+    bool wifi_idle_disconnected = false;
 
     SemaphoreHandle_t mutex;
     TaskHandle_t home_assistant_task;
@@ -87,4 +87,8 @@ void store_update_ui_state(EntityStore* store, const Screen* screen, UIState* ui
 void store_wait_for_wifi_up(EntityStore* store);
 void store_flush_pending_commands(EntityStore* store);
 void store_set_battery(EntityStore* store, uint16_t voltage_mv, uint8_t percentage, bool charging);
+void store_set_last_touch(EntityStore* store, uint32_t ms);
+uint32_t store_get_last_touch(EntityStore* store);
+void store_set_wifi_idle(EntityStore* store, bool idle);
+bool store_get_wifi_idle(EntityStore* store);
 EntityRef store_add_entity(EntityStore* store, EntityConfig entity);

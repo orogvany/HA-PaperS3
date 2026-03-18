@@ -442,7 +442,7 @@ void home_assistant_task(void* arg) {
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(SLEEP_WAKE_INTERVAL_MS));
 
         // Check if touch woke us from idle WiFi disconnect
-        if (wifi_is_off && !store->wifi_idle_disconnected) {
+        if (wifi_is_off && !store_get_wifi_idle(store)) {
             ESP_LOGI(TAG, "Touch detected, reconnecting WiFi...");
             WiFi.mode(WIFI_STA);
             WiFi.setSleep(WIFI_PS_MIN_MODEM);
@@ -465,32 +465,28 @@ void home_assistant_task(void* arg) {
         }
 
         // Check for idle timeout → disconnect WiFi
-        if (!wifi_is_off && store->last_touch_ms > 0) {
-            uint32_t idle_ms = millis() - store->last_touch_ms;
+        uint32_t last_touch = store_get_last_touch(store);
+        if (!wifi_is_off && last_touch > 0) {
+            uint32_t idle_ms = millis() - last_touch;
             if (idle_ms > IDLE_WIFI_DISCONNECT_MS) {
                 ESP_LOGI(TAG, "Idle timeout, disconnecting WiFi");
                 wsClient->disconnect();
                 WiFi.disconnect(true);
                 WiFi.mode(WIFI_OFF);
                 wifi_is_off = true;
-                store->wifi_idle_disconnected = true;
+                store_set_wifi_idle(store, true);
                 hass_update_state(hass, ConnState::ConnectionError);
                 continue;
             }
         }
 
         // Check for deep idle → PMS150G shutdown
-        if (wifi_is_off && HAS_PMS150G && PMS150G_AUTO_SHUTDOWN_ENABLED && store->last_touch_ms > 0) {
-            uint32_t idle_ms = millis() - store->last_touch_ms;
+        if (wifi_is_off && HAS_PMS150G && PMS150G_AUTO_SHUTDOWN_ENABLED && last_touch > 0) {
+            uint32_t idle_ms = millis() - last_touch;
             if (idle_ms > PMS150G_SHUTDOWN_IDLE_MS) {
                 ESP_LOGI(TAG, "Deep idle timeout, entering PMS150G shutdown");
 
-                static FASTEPD shutdown_epaper;
-                shutdown_epaper.initPanel(DISPLAY_PANEL);
-                shutdown_epaper.setPanelSize(DISPLAY_HEIGHT, DISPLAY_WIDTH);
-                shutdown_epaper.setRotation(90);
-                shutdown_epaper.einkPower(true);
-                drawIdleScreen(&shutdown_epaper, 0, 0);
+                drawIdleScreen(ctx->epaper, 0, 0);
 
                 power_setup_rtc_timer(PMS150G_RTC_WAKE_INTERVAL_MIN);
                 power_off_pms150g();

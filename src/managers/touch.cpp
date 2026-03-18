@@ -46,10 +46,10 @@ void touch_task(void* arg) {
     while (true) {
         if (bbct->getSamples(&ti)) {
             last_touch_ms = millis();
-            store->last_touch_ms = last_touch_ms;
+            store_set_last_touch(store, last_touch_ms);
 
-            if (store->wifi_idle_disconnected) {
-                store->wifi_idle_disconnected = false;
+            if (store_get_wifi_idle(store)) {
+                store_set_wifi_idle(store, false);
                 xTaskNotifyGive(store->home_assistant_task);
             }
 
