@@ -31,6 +31,13 @@ static TouchTaskArgs touch_task_args;
 static HomeAssistantTaskArgs hass_task_args;
 static BatteryTaskArgs battery_task_args;
 
+static void init_display(FASTEPD* ep) {
+    ep->initPanel(DISPLAY_PANEL);
+    ep->setPanelSize(DISPLAY_HEIGHT, DISPLAY_WIDTH);
+    ep->setRotation(90);
+    ep->einkPower(true);
+}
+
 static bool idle_hook() {
     esp_light_sleep_start();
     return true;
@@ -49,10 +56,7 @@ void setup() {
     if (HAS_PMS150G && PMS150G_AUTO_SHUTDOWN_ENABLED && power_was_rtc_wake()) {
         power_clear_rtc_flag();
 
-        epaper.initPanel(DISPLAY_PANEL);
-        epaper.setPanelSize(DISPLAY_HEIGHT, DISPLAY_WIDTH);
-        epaper.setRotation(90);
-        epaper.einkPower(true);
+        init_display(&epaper);
 
         // Read RTC seconds (BCD-encoded, bit 7 = VL flag) for position offset
         Wire.beginTransmission(BM8563_ADDR);
@@ -86,11 +90,7 @@ void setup() {
     configure_remote(&config, &store, &screen);
     initialize_slider_sprites();
 
-    // Initialize display
-    epaper.initPanel(DISPLAY_PANEL);
-    epaper.setPanelSize(DISPLAY_HEIGHT, DISPLAY_WIDTH);
-    epaper.setRotation(90);
-    epaper.einkPower(true); // FIXME: Disabling power makes the GT911 unavailable
+    init_display(&epaper);
 
     // Launch UI task
     ui_task_args.epaper = &epaper;

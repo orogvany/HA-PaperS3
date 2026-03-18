@@ -114,12 +114,12 @@ void hass_parse_entity_update(home_assistant_context_t* hass, uint8_t widget_idx
 
         cJSON* brightness = cJSON_GetObjectItem(attributes, "brightness");
         if (cJSON_IsNumber(brightness)) {
-            hass->entity_values[widget_idx] = brightness->valueint * 100 / 254;
+            hass->entity_values[widget_idx] = brightness->valueint * 100 / 255;
         }
 
         cJSON* off_brightness = cJSON_GetObjectItem(attributes, "off_brightness");
         if (cJSON_IsNumber(off_brightness)) {
-            hass->entity_values[widget_idx] = off_brightness->valueint * 100 / 254;
+            hass->entity_values[widget_idx] = off_brightness->valueint * 100 / 255;
         }
 
         cJSON* current_position = cJSON_GetObjectItem(attributes, "current_position");
@@ -248,6 +248,17 @@ static void hass_ws_event_handler(WStype_t type, uint8_t* payload, size_t length
     default:
         break;
     }
+}
+
+static void hass_ws_connect(home_assistant_context_t* hass) {
+    if (hass->ws_ssl) {
+        hass->client->beginSSL(hass->ws_host.c_str(), hass->ws_port, hass->ws_path.c_str(), nullptr, "");
+    } else {
+        hass->client->begin(hass->ws_host.c_str(), hass->ws_port, hass->ws_path.c_str());
+    }
+    hass->client->onEvent(hass_ws_event_handler);
+    hass->client->setReconnectInterval(HASS_RECONNECT_DELAY_MS);
+    hass->client->enableHeartbeat(30000, 10000, 2);
 }
 
 void hass_send_command(home_assistant_context_t* hass, Command* cmd) {
@@ -425,15 +436,7 @@ void home_assistant_task(void* arg) {
     WebSocketsClient* wsClient = new WebSocketsClient();
     hass->client = wsClient;
 
-    if (hass->ws_ssl) {
-        wsClient->beginSSL(hass->ws_host.c_str(), hass->ws_port, hass->ws_path.c_str(), nullptr, "");
-    } else {
-        wsClient->begin(hass->ws_host.c_str(), hass->ws_port, hass->ws_path.c_str());
-    }
-
-    wsClient->onEvent(hass_ws_event_handler);
-    wsClient->setReconnectInterval(HASS_RECONNECT_DELAY_MS);
-    wsClient->enableHeartbeat(30000, 10000, 2);
+    hass_ws_connect(hass);
 
     Command command;
     bool wifi_is_off = false;
@@ -453,14 +456,7 @@ void home_assistant_task(void* arg) {
             store_flush_pending_commands(store);
             store_wait_for_wifi_up(store);
 
-            if (hass->ws_ssl) {
-                wsClient->beginSSL(hass->ws_host.c_str(), hass->ws_port, hass->ws_path.c_str(), nullptr, "");
-            } else {
-                wsClient->begin(hass->ws_host.c_str(), hass->ws_port, hass->ws_path.c_str());
-            }
-            wsClient->onEvent(hass_ws_event_handler);
-            wsClient->setReconnectInterval(HASS_RECONNECT_DELAY_MS);
-            wsClient->enableHeartbeat(30000, 10000, 2);
+            hass_ws_connect(hass);
             continue;
         }
 
