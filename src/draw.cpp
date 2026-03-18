@@ -4,6 +4,7 @@
 #include <FastEPD.h>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 
 void drawCenteredIconWithText(FASTEPD* epaper, const uint8_t* icon, const char* const* lines, uint8_t line_spacing,
                               uint8_t icon_spacing) {
@@ -37,4 +38,46 @@ void drawCenteredIconWithText(FASTEPD* epaper, const uint8_t* icon, const char* 
 
         cursor_y += rect.h + line_spacing;
     }
+}
+
+constexpr uint16_t BATT_ICON_W = 28;
+constexpr uint16_t BATT_ICON_H = 14;
+constexpr uint16_t BATT_TIP_W = 3;
+constexpr uint16_t BATT_BORDER = 2;
+constexpr uint16_t BATT_MARGIN = 10;
+
+void drawBatteryIndicator(FASTEPD* epaper, uint8_t percentage, bool charging) {
+    char label[8];
+    if (charging) {
+        snprintf(label, sizeof(label), "%d%%+", percentage);
+    } else {
+        snprintf(label, sizeof(label), "%d%%", percentage);
+    }
+
+    BB_RECT text_rect;
+    epaper->setFont(Montserrat_Regular_26);
+    epaper->setTextColor(BBEP_BLACK);
+    epaper->getStringBox(label, &text_rect);
+
+    uint16_t total_w = BATT_ICON_W + BATT_TIP_W + 6 + text_rect.w;
+    uint16_t x = DISPLAY_HEIGHT - BATT_MARGIN - total_w;
+    uint16_t y = BATT_MARGIN;
+
+    // Clear the area
+    epaper->fillRect(x - 4, y - 2, total_w + 8, std::max((int)BATT_ICON_H, text_rect.h) + 4, 0xf);
+
+    // Battery outline
+    epaper->drawRect(x, y, BATT_ICON_W, BATT_ICON_H, BBEP_BLACK);
+    epaper->fillRect(x + BATT_ICON_W, y + 3, BATT_TIP_W, BATT_ICON_H - 6, BBEP_BLACK);
+
+    // Fill level
+    uint16_t fill_w = (BATT_ICON_W - 2 * BATT_BORDER) * percentage / 100;
+    if (fill_w > 0) {
+        epaper->fillRect(x + BATT_BORDER, y + BATT_BORDER, fill_w, BATT_ICON_H - 2 * BATT_BORDER, BBEP_BLACK);
+    }
+
+    // Percentage text
+    uint16_t text_x = x + BATT_ICON_W + BATT_TIP_W + 6;
+    epaper->setCursor(text_x, y + (BATT_ICON_H + text_rect.h) / 2 - 2);
+    epaper->write(label);
 }

@@ -11,6 +11,7 @@ constexpr size_t TOUCH_SCL = 40;
 constexpr size_t TOUCH_INT = 3;
 constexpr size_t TOUCH_RST = 9;
 constexpr int DISPLAY_PANEL = BB_PANEL_EPDIY_V7;
+constexpr bool HAS_BATTERY_ADC = false;
 #endif
 
 #ifdef TARGET_M5PAPER_S3
@@ -21,4 +22,5 @@ constexpr size_t TOUCH_SCL = 42;
 constexpr size_t TOUCH_INT = 48;
 constexpr size_t TOUCH_RST = 0;
 constexpr int DISPLAY_PANEL = BB_PANEL_M5PAPERS3;
+constexpr bool HAS_BATTERY_ADC = true;
 #endif

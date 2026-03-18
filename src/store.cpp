@@ -126,11 +126,28 @@ void store_update_ui_state(EntityStore* store, const Screen* screen, UIState* ui
         uint8_t entity_id = screen->entity_ids[widget_idx];
         ui_state->widget_values[widget_idx] = store->entities[entity_id].current_value;
     }
+
+    ui_state->battery_percentage = store->battery.percentage;
+    ui_state->battery_charging = store->battery.charging;
+
     xSemaphoreGive(store->mutex);
 }
 
 void store_wait_for_wifi_up(EntityStore* store) {
     xEventGroupWaitBits(store->event_group, BIT_WIFI_UP, pdFALSE, pdTRUE, portMAX_DELAY);
+}
+
+void store_set_battery(EntityStore* store, uint16_t voltage_mv, uint8_t percentage, bool charging) {
+    xSemaphoreTake(store->mutex, portMAX_DELAY);
+    bool changed = store->battery.percentage != percentage || store->battery.charging != charging;
+    store->battery.voltage_mv = voltage_mv;
+    store->battery.percentage = percentage;
+    store->battery.charging = charging;
+    xSemaphoreGive(store->mutex);
+
+    if (changed && store->ui_task) {
+        xTaskNotifyGive(store->ui_task);
+    }
 }
 
 void store_flush_pending_commands(EntityStore* store) {

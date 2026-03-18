@@ -35,9 +35,16 @@ enum class ConnState : uint8_t {
     Up,
 };
 
+struct BatteryState {
+    uint16_t voltage_mv = 0;
+    uint8_t percentage = 0;
+    bool charging = false;
+};
+
 struct EntityStore {
     ConnState wifi = ConnState::Initializing;
     ConnState home_assistant = ConnState::Initializing;
+    BatteryState battery;
 
     HomeAssistantEntity entities[MAX_ENTITIES];
     uint8_t entity_count;
@@ -67,4 +74,5 @@ void store_ack_pending_command(EntityStore* store, const Command* command);
 void store_update_ui_state(EntityStore* store, const Screen* screen, UIState* ui_state);
 void store_wait_for_wifi_up(EntityStore* store);
 void store_flush_pending_commands(EntityStore* store);
+void store_set_battery(EntityStore* store, uint16_t voltage_mv, uint8_t percentage, bool charging);
 EntityRef store_add_entity(EntityStore* store, EntityConfig entity);

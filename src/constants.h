@@ -27,6 +27,12 @@ constexpr uint32_t HASS_TASK_SEND_DELAY_MS = 500;
 // and a target value in the store at some point.
 constexpr uint32_t HASS_IGNORE_UPDATE_DELAY_MS = 1000;
 
+// Battery monitoring
+constexpr uint32_t BATTERY_READ_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+constexpr uint8_t BATTERY_ADC_PIN = 3;
+constexpr uint8_t BATTERY_CHARGE_PIN = 4;
+constexpr float BATTERY_ADC_DIVIDER_RATIO = 2.0f;
+
 // Other constants
 constexpr size_t MAX_ENTITIES = 8;
 constexpr size_t MAX_WIDGETS_PER_SCREEN = 8;

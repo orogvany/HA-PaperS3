@@ -6,6 +6,7 @@
 #include "store.h"
 #include "widgets/Widget.h"
 #include <algorithm>
+#include <cstring>
 
 static const char* TAG = "ui";
 static const char* const TEXT_BOOT[] = {"Home Assistant", "e-paper remote", nullptr};
@@ -38,6 +39,9 @@ void accumulate_damage(Rect& acc, const Rect& r) {
 void ui_main_screen_full_draw(UIState* state, BitDepth depth, Screen* screen, FASTEPD* epaper) {
     for (uint8_t widget_idx = 0; widget_idx < screen->widget_count; widget_idx++) {
         screen->widgets[widget_idx]->fullDraw(epaper, depth, state->widget_values[widget_idx]);
+    }
+    if (HAS_BATTERY_ADC) {
+        drawBatteryIndicator(epaper, state->battery_percentage, state->battery_charging);
     }
 }
 
@@ -118,6 +122,12 @@ void ui_task(void* arg) {
                                                                                     current_value);
                         accumulate_damage(damage_accum, damage);
                     }
+                }
+
+                if (HAS_BATTERY_ADC && (current_state.battery_percentage != displayed_state.battery_percentage ||
+                                        current_state.battery_charging != displayed_state.battery_charging)) {
+                    drawBatteryIndicator(ctx->epaper, current_state.battery_percentage, current_state.battery_charging);
+                    display_is_dirty = true;
                 }
                 if (damage_accum.w > 0 || damage_accum.h > 0) {
                     ESP_LOGI(TAG, "Launching partial update rows %d to %d", damage_accum.x, damage_accum.x + damage_accum.w);

@@ -18,6 +18,8 @@ enum class UiMode : uint8_t {
 struct UIState {
     UiMode mode = UiMode::Blank;
     uint8_t widget_values[MAX_WIDGETS_PER_SCREEN] = {};
+    uint8_t battery_percentage = 0;
+    bool battery_charging = false;
 };
 
 // The touch task needs to know the current state of the UI.

@@ -1,6 +1,7 @@
 #include "boards.h"
 #include "config_remote.h"
 #include "constants.h"
+#include "managers/battery.h"
 #include "managers/home_assistant.h"
 #include "managers/touch.h"
 #include "managers/ui.h"
@@ -22,6 +23,7 @@ static SharedUIState shared_ui_state;
 static UITaskArgs ui_task_args;
 static TouchTaskArgs touch_task_args;
 static HomeAssistantTaskArgs hass_task_args;
+static BatteryTaskArgs battery_task_args;
 
 void setup() {
     // Initialize objects
@@ -57,6 +59,10 @@ void setup() {
     touch_task_args.state = &shared_ui_state;
     touch_task_args.store = &store;
     xTaskCreate(touch_task, "touch", 4096, &touch_task_args, 1, nullptr);
+
+    // Launch battery monitoring task
+    battery_task_args.store = &store;
+    xTaskCreate(battery_task, "battery", 2048, &battery_task_args, 1, nullptr);
 }
 
 void loop() {
