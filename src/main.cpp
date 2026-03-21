@@ -45,10 +45,15 @@ static bool idle_hook() {
 
 void setup() {
     Serial.begin(115200);
-    delay(1000); // Give USB CDC time to enumerate
+    while (!Serial && millis() < 3000) { delay(10); } // Wait for USB CDC, max 3 seconds
     Serial.println("=== M5Paper S3 HA Remote - Booting ===");
+    Serial.flush();
 
-    Wire.begin(TOUCH_SDA, TOUCH_SCL);
+    // Only init I2C early if we need it for BMI270 or Phase 4 RTC check
+    // (touch task handles its own I2C init via bbct->init())
+    if (FEATURE_BMI270_SUSPEND || (FEATURE_PMS150G_SHUTDOWN && HAS_PMS150G)) {
+        Wire.begin(TOUCH_SDA, TOUCH_SCL);
+    }
 
     // Phase 3.5: Put BMI270 gyroscope into suspend mode (~3.5µA vs ~950µA)
     if (FEATURE_BMI270_SUSPEND) {
@@ -59,7 +64,7 @@ void setup() {
     }
 
     // Phase 4: Check if this is an RTC wake from PMS150G power-off
-    if (PHASE4_PMS150G_SHUTDOWN && HAS_PMS150G && power_was_rtc_wake()) {
+    if (FEATURE_PMS150G_SHUTDOWN && HAS_PMS150G && power_was_rtc_wake()) {
         power_clear_rtc_flag();
         init_display(&epaper);
 
@@ -80,7 +85,7 @@ void setup() {
     }
 
     // Phase 2: Configure light sleep wake sources
-    if (PHASE2_LIGHT_SLEEP) {
+    if (FEATURE_LIGHT_SLEEP) {
         esp_sleep_enable_timer_wakeup(SLEEP_WAKE_INTERVAL_MS * 1000);
         gpio_wakeup_enable((gpio_num_t)TOUCH_INT, GPIO_INTR_LOW_LEVEL);
         esp_sleep_enable_gpio_wakeup();
@@ -90,6 +95,7 @@ void setup() {
 
     // Initialize objects
     store_init(&store);
+    store_set_last_touch(&store, millis()); // Start idle timer from boot
     ui_state_init(&shared_ui_state);
     configure_remote(&config, &store, &screen);
     initialize_slider_sprites();

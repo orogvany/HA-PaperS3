@@ -4,15 +4,14 @@
 #include <cstdint>
 
 // ============================================================================
-// PHASE FEATURE FLAGS — set to false to disable individual power saving phases
-// Start with all OFF for baseline testing, enable one at a time
+// FEATURE FLAGS — set to false to disable individual features
 // ============================================================================
-constexpr bool PHASE1_WIFI_MODEM_SLEEP = false;     // WiFi modem power save between DTIM beacons
-constexpr bool PHASE2_LIGHT_SLEEP = false;           // CPU light sleep via idle hook + interrupt-driven touch
-constexpr bool PHASE3_IDLE_WIFI_DISCONNECT = false;  // Disconnect WiFi after idle timeout
-constexpr bool PHASE4_PMS150G_SHUTDOWN = false;      // Deep power-off via PMS150G after extended idle
-constexpr bool FEATURE_BATTERY_INDICATOR = false;    // On-screen battery percentage
-constexpr bool FEATURE_BMI270_SUSPEND = false;       // Put gyroscope in suspend mode on boot
+constexpr bool FEATURE_WIFI_MODEM_SLEEP = true;      // WiFi modem power save between DTIM beacons
+constexpr bool FEATURE_LIGHT_SLEEP = false;           // CPU light sleep via idle hook + interrupt-driven touch (NEEDS REWORK: idle hook fires too aggressively, sleeps before setup/tasks complete, kills USB serial. Fix: add ready flag, delay hook registration, skip when USB connected via GPIO 5)
+constexpr bool FEATURE_IDLE_WIFI_DISCONNECT = true;   // Disconnect WiFi after idle timeout
+constexpr bool FEATURE_PMS150G_SHUTDOWN = false;      // Deep power-off via PMS150G after extended idle
+constexpr bool FEATURE_BATTERY_INDICATOR = false;     // On-screen battery percentage
+constexpr bool FEATURE_BMI270_SUSPEND = false;        // Put gyroscope in suspend mode on boot
 
 // Buttons configuration
 constexpr uint8_t BUTTON_BORDER_SIZE = 4;
@@ -52,7 +51,7 @@ constexpr uint32_t TOUCH_POLL_IDLE_MS = 500;
 constexpr uint32_t SLEEP_WAKE_INTERVAL_MS = 5000;
 
 // Idle WiFi disconnect timeout (disconnect WiFi after no touch for this long)
-constexpr uint32_t IDLE_WIFI_DISCONNECT_MS = 5 * 60 * 1000; // 5 minutes
+constexpr uint32_t IDLE_WIFI_DISCONNECT_MS = 30 * 1000; // 30 seconds (testing, change to 5 * 60 * 1000 for production)
 
 // PMS150G auto-shutdown (Phase 4 deep power-off)
 constexpr bool PMS150G_AUTO_SHUTDOWN_ENABLED = true;

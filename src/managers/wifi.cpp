@@ -17,14 +17,19 @@ void launch_wifi(Configuration* config, EntityStore* store) {
             break;
         case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
         case ARDUINO_EVENT_WIFI_STA_LOST_IP:
-            ESP_LOGI(TAG, "disconnected");
-            store_set_wifi_state(store, ConnState::ConnectionError);
+            // Don't update UI if this is an intentional idle disconnect (Phase 3)
+            if (store_get_wifi_idle(store)) {
+                ESP_LOGI(TAG, "disconnected (idle, no UI update)");
+            } else {
+                ESP_LOGI(TAG, "disconnected");
+                store_set_wifi_state(store, ConnState::ConnectionError);
+            }
             break;
         }
     });
 
     WiFi.mode(WIFI_STA);
-    if (PHASE1_WIFI_MODEM_SLEEP) {
+    if (FEATURE_WIFI_MODEM_SLEEP) {
         WiFi.setSleep(WIFI_PS_MIN_MODEM);
     }
     WiFi.setAutoReconnect(true);

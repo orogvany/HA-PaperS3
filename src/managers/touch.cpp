@@ -35,13 +35,20 @@ void touch_task(void* arg) {
     uint8_t widget_current_value = 0;
 
     ESP_LOGI(TAG, "Initializing touchscreen...");
-    int rc = bbct->init(TOUCH_SDA, TOUCH_SCL, TOUCH_RST, TOUCH_INT);
+    int rc = -1;
+    for (int attempt = 0; attempt < 10 && rc <= 0; attempt++) {
+        if (attempt > 0) {
+            ESP_LOGI(TAG, "Retrying touch init (attempt %d)...", attempt + 1);
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }
+        rc = bbct->init(TOUCH_SDA, TOUCH_SCL, TOUCH_RST, TOUCH_INT);
+    }
     ESP_LOGI(TAG, "init() rc = %d", rc);
     int type = bbct->sensorType();
     ESP_LOGI(TAG, "Sensor type = %d", type);
 
     // Phase 2: interrupt-driven touch instead of polling
-    if (PHASE2_LIGHT_SLEEP) {
+    if (FEATURE_LIGHT_SLEEP) {
         touch_semaphore = xSemaphoreCreateBinary();
         attachInterrupt(digitalPinToInterrupt(TOUCH_INT), touch_isr, FALLING);
     }
@@ -51,7 +58,7 @@ void touch_task(void* arg) {
             last_touch_ms = millis();
 
             // Phase 3: track touch time and trigger WiFi reconnect if idle-disconnected
-            if (PHASE3_IDLE_WIFI_DISCONNECT) {
+            if (FEATURE_IDLE_WIFI_DISCONNECT) {
                 store_set_last_touch(store, last_touch_ms);
                 if (store_get_wifi_idle(store)) {
                     store_set_wifi_idle(store, false);
@@ -60,6 +67,11 @@ void touch_task(void* arg) {
             }
 
             ui_state_copy(ctx->state, &ui_state_version, ui_state);
+
+            // Only process widget touches when on the main screen
+            if (ui_state->mode != UiMode::MainScreen) {
+                continue;
+            }
 
             if (active_widget != -1) {
                 if (touch_event.x == ti.x[0] && touch_event.y == ti.y[0]) {
@@ -100,7 +112,7 @@ void touch_task(void* arg) {
                 vTaskDelay(pdMS_TO_TICKS(TOUCH_POLL_ACTIVE_MS));
             } else {
                 // Phase 2: block on semaphore (CPU can sleep), otherwise poll
-                if (PHASE2_LIGHT_SLEEP && touch_semaphore) {
+                if (FEATURE_LIGHT_SLEEP && touch_semaphore) {
                     xSemaphoreTake(touch_semaphore, portMAX_DELAY);
                 } else {
                     vTaskDelay(pdMS_TO_TICKS(TOUCH_POLL_IDLE_MS));

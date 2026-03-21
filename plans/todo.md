@@ -20,4 +20,6 @@
   let's weigh them
 - CLICK, DOIN IT - Buzzer Onboard passive buzzer - so, any use for this like phones use for tactile button pushing? or
   worthless?
+- TODO - OTA updates: partition table already has app1 slot (6.25MB) reserved for OTA. Would allow firmware updates
+  over WiFi without pulling the device off the wall. ArduinoOTA or ESP-IDF OTA. Also 3.375MB SPIFFS partition unused.
 

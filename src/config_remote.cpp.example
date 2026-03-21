@@ -16,7 +16,7 @@ void configure_remote(Configuration* config, EntityStore* store, Screen* screen)
     config->home_assistant_token = "ey...";
     config->root_ca = ISRG_ROOT_X1; // You probably don't need to update this
 
-    // Declare home assistant entities
+    // Declare home assistant entities -- todo - should use web interface to make this configurable in NVS.  Heck, wifi and HA stuff configurable via captive portal would be better.
     EntityConfig living_room_lights = {
         .entity_id = "light.silicon_labs_ezsp_lampes_salon",
         .command_type = CommandType::SetLightBrightnessPercentage,
