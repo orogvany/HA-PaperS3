@@ -48,7 +48,7 @@ constexpr float BATTERY_ADC_DIVIDER_RATIO = 2.0f;
 
 // --- BMI270 Gyroscope Suspend ---
 // Puts the BMI270 IMU into suspend mode on boot (~3.5µA vs ~950µA).
-constexpr bool FEATURE_BMI270_SUSPEND = false;
+constexpr bool FEATURE_BMI270_SUSPEND = true;
 
 // --- Buzzer Touch Feedback ---
 // Audible click on widget touch via onboard passive buzzer.
