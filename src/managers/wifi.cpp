@@ -1,5 +1,6 @@
 #include "wifi.h"
 #include "config.h"
+#include "constants.h"
 #include "store.h"
 #include <WiFi.h>
 
@@ -23,7 +24,9 @@ void launch_wifi(Configuration* config, EntityStore* store) {
     });
 
     WiFi.mode(WIFI_STA);
-    WiFi.setSleep(WIFI_PS_MIN_MODEM);
+    if (PHASE1_WIFI_MODEM_SLEEP) {
+        WiFi.setSleep(WIFI_PS_MIN_MODEM);
+    }
     WiFi.setAutoReconnect(true);
     WiFi.begin(config->wifi_ssid, config->wifi_password);
 }

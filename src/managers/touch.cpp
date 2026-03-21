@@ -40,17 +40,23 @@ void touch_task(void* arg) {
     int type = bbct->sensorType();
     ESP_LOGI(TAG, "Sensor type = %d", type);
 
-    touch_semaphore = xSemaphoreCreateBinary();
-    attachInterrupt(digitalPinToInterrupt(TOUCH_INT), touch_isr, FALLING);
+    // Phase 2: interrupt-driven touch instead of polling
+    if (PHASE2_LIGHT_SLEEP) {
+        touch_semaphore = xSemaphoreCreateBinary();
+        attachInterrupt(digitalPinToInterrupt(TOUCH_INT), touch_isr, FALLING);
+    }
 
     while (true) {
         if (bbct->getSamples(&ti)) {
             last_touch_ms = millis();
-            store_set_last_touch(store, last_touch_ms);
 
-            if (store_get_wifi_idle(store)) {
-                store_set_wifi_idle(store, false);
-                xTaskNotifyGive(store->home_assistant_task);
+            // Phase 3: track touch time and trigger WiFi reconnect if idle-disconnected
+            if (PHASE3_IDLE_WIFI_DISCONNECT) {
+                store_set_last_touch(store, last_touch_ms);
+                if (store_get_wifi_idle(store)) {
+                    store_set_wifi_idle(store, false);
+                    xTaskNotifyGive(store->home_assistant_task);
+                }
             }
 
             ui_state_copy(ctx->state, &ui_state_version, ui_state);
@@ -93,7 +99,12 @@ void touch_task(void* arg) {
                 }
                 vTaskDelay(pdMS_TO_TICKS(TOUCH_POLL_ACTIVE_MS));
             } else {
-                xSemaphoreTake(touch_semaphore, portMAX_DELAY);
+                // Phase 2: block on semaphore (CPU can sleep), otherwise poll
+                if (PHASE2_LIGHT_SLEEP && touch_semaphore) {
+                    xSemaphoreTake(touch_semaphore, portMAX_DELAY);
+                } else {
+                    vTaskDelay(pdMS_TO_TICKS(TOUCH_POLL_IDLE_MS));
+                }
             }
         }
     }

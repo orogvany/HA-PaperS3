@@ -51,8 +51,8 @@ static uint8_t voltage_to_percentage(uint16_t voltage_mv) {
 void battery_task(void* arg) {
     BatteryTaskArgs* ctx = static_cast<BatteryTaskArgs*>(arg);
 
-    if (!HAS_BATTERY_ADC) {
-        ESP_LOGI(TAG, "No battery ADC on this board, suspending task");
+    if (!FEATURE_BATTERY_INDICATOR || !HAS_BATTERY_ADC) {
+        ESP_LOGI(TAG, "Battery monitoring disabled, suspending task");
         vTaskSuspend(nullptr);
     }
 

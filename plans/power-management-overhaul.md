@@ -1,8 +1,31 @@
 # Power Management Overhaul
 
-**Status**: Phase 0+1+2+3+4 complete. All phases implemented, pending hardware testing.
+**Status**: All phases implemented. Hardware testing in progress — all phase flags currently OFF for baseline.
 **Created**: 2026-03-17
+**Updated**: 2026-03-21
 **Branch**: `feature/power-management`
+
+### Feature Flags (constants.h)
+All phases are independently toggleable. Set to `true` to enable, `false` to disable.
+Currently ALL set to `false` for baseline hardware validation.
+
+| Flag | Phase | Default | Description |
+|------|-------|---------|-------------|
+| `PHASE1_WIFI_MODEM_SLEEP` | 1 | false | WiFi modem power save between DTIM beacons |
+| `PHASE2_LIGHT_SLEEP` | 2 | false | CPU light sleep via idle hook + interrupt-driven touch |
+| `PHASE3_IDLE_WIFI_DISCONNECT` | 3 | false | Disconnect WiFi after 5 min idle, reconnect on touch |
+| `PHASE4_PMS150G_SHUTDOWN` | 4 | false | Deep power-off via PMS150G after 6 hours idle |
+| `FEATURE_BATTERY_INDICATOR` | 0 | false | On-screen battery percentage + serial logging |
+| `FEATURE_BMI270_SUSPEND` | 3.5 | false | Put gyroscope in suspend mode on boot |
+
+### Testing Order
+1. All OFF — verify base device works (display, touch, WiFi, HA connection)
+2. `FEATURE_BATTERY_INDICATOR` — verify battery reading + on-screen display
+3. `FEATURE_BMI270_SUSPEND` — verify gyro suspend doesn't break anything
+4. `PHASE1_WIFI_MODEM_SLEEP` — verify WiFi stays connected with modem sleep
+5. `PHASE2_LIGHT_SLEEP` — verify light sleep + interrupt touch works
+6. `PHASE3_IDLE_WIFI_DISCONNECT` — verify WiFi disconnect/reconnect cycle
+7. `PHASE4_PMS150G_SHUTDOWN` — verify power-off + RTC wake cycle
 
 ---
 
@@ -274,20 +297,19 @@ etc.) rather than going blank or showing "tap to wake." This is a larger feature
 
 ---
 
-## Phase 3.5: BMI270 Gyroscope Low Power
+## Phase 3.5: BMI270 Gyroscope Low Power ✅ IMPLEMENTED (pending hardware testing)
 
 **Goal**: Ensure the BMI270 IMU is in suspend mode since we don't use it. Board specs show 949.58µA with gyro on vs
 9.28µA with gyro in low power — nearly 1mA wasted.
 
-- BMI270 defaults to suspend mode (3.5µA) after POR, but something may be waking it
-- I2C address: 0x68 or 0x69, shares I2C bus with GT911 (SDA=41, SCL=42)
-- Need to verify current state and explicitly put it in suspend if not already
+- Writes 0x00 to PWR_CTRL register (0x7D) at I2C address 0x68 on boot
+- Gated behind `FEATURE_BMI270_SUSPEND` flag
 
 ---
 
-## Phase 4: Deep Sleep for Long Idle (Optional/Experimental)
+## Phase 4: PMS150G Power-Off for Extended Idle ✅ IMPLEMENTED (pending hardware testing)
 
-**Goal**: Maximize battery life for overnight/unused periods. This phase has significant trade-offs.
+**Goal**: Maximize battery life for days/weeks of inactivity. After 6 hours idle, power off via PMS150G (~9.28µA). RTC alarm wakes every 4 hours to refresh idle screen.
 
 ### Constraints
 
@@ -310,7 +332,7 @@ etc.) rather than going blank or showing "tap to wake." This is a larger feature
 
 ### 4A — SKIP. ESP32 deep sleep draws ~5.1mA (worse than light sleep + WiFi off at ~6mA). Not worth it.
 
-### 4B. PMS150G Auto-Shutdown (VIABLE — back pocket)
+### 4B. PMS150G Auto-Shutdown ✅ IMPLEMENTED (pending hardware testing)
 
 After extended idle (e.g., 6 hours no touch):
 
@@ -385,14 +407,9 @@ stable for easy comparison:
 - `v0.2-phase2` — Light sleep + interrupt touch
 - `v0.3-phase3` — Idle WiFi disconnect
 
-### sdkconfig / platformio.ini Changes Required
+### sdkconfig / platformio.ini Notes
 
-Phase 2 will require build configuration changes:
-
-- `CONFIG_FREERTOS_USE_TICKLESS_IDLE=y`
-- `CONFIG_PM_ENABLE=y`
-- Possibly `CONFIG_ESP_WIFI_SLP_IRAM_OPT=y` for WiFi light-sleep optimization
-- These need to be added via `board_build.partitions` or `build_flags` in platformio.ini
+The stock Arduino ESP32 3.x framework is pre-built without `CONFIG_PM_ENABLE` and `CONFIG_FREERTOS_USE_TICKLESS_IDLE`. We bypassed this by using a manual FreeRTOS idle hook that calls `esp_light_sleep_start()` directly. No sdkconfig changes were needed.
 
 ---
 

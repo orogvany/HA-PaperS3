@@ -90,16 +90,26 @@ void drawIdleScreen(FASTEPD* epaper, int16_t offset_x, int16_t offset_y) {
     epaper->setFont(Montserrat_Regular_26);
     epaper->setTextColor(BBEP_BLACK);
 
-    const char* line = "Press button to wake";
-    epaper->getStringBox(line, &rect);
+    const char* line1 = "Press button";
+    const char* line2 = "to wake";
 
-    int16_t cx = (DISPLAY_HEIGHT - rect.w) / 2 + offset_x;
-    int16_t cy = (DISPLAY_WIDTH - rect.h) / 2 + offset_y;
-    uint16_t x = (uint16_t)std::max((int16_t)0, std::min(cx, (int16_t)(DISPLAY_HEIGHT - rect.w)));
-    uint16_t y = (uint16_t)std::max((int16_t)0, std::min(cy, (int16_t)(DISPLAY_WIDTH - rect.h)));
+    BB_RECT r1, r2;
+    epaper->getStringBox(line1, &r1);
+    epaper->getStringBox(line2, &r2);
 
-    epaper->setCursor(x, y);
-    epaper->write(line);
+    uint16_t total_h = r1.h + 10 + r2.h;
+    int16_t base_x = DISPLAY_WIDTH / 2;
+    int16_t base_y = (DISPLAY_HEIGHT - total_h) / 2;
+
+    int16_t x1 = base_x - r1.w / 2 + offset_x;
+    int16_t y1 = base_y + offset_y;
+    int16_t x2 = base_x - r2.w / 2 + offset_x;
+    int16_t y2 = y1 + r1.h + 10;
+
+    epaper->setCursor(std::max((int16_t)0, x1), std::max((int16_t)0, y1));
+    epaper->write(line1);
+    epaper->setCursor(std::max((int16_t)0, x2), std::max((int16_t)0, y2));
+    epaper->write(line2);
 
     epaper->fullUpdate(CLEAR_SLOW, false);
 }

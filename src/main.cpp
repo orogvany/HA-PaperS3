@@ -44,18 +44,23 @@ static bool idle_hook() {
 }
 
 void setup() {
+    Serial.begin(115200);
+    delay(1000); // Give USB CDC time to enumerate
+    Serial.println("=== M5Paper S3 HA Remote - Booting ===");
+
     Wire.begin(TOUCH_SDA, TOUCH_SCL);
 
-    // Put BMI270 gyroscope into suspend mode (~3.5µA vs ~950µA)
-    Wire.beginTransmission(0x68);
-    Wire.write(0x7D); // PWR_CTRL register
-    Wire.write(0x00); // Disable accelerometer and gyroscope
-    Wire.endTransmission();
+    // Phase 3.5: Put BMI270 gyroscope into suspend mode (~3.5µA vs ~950µA)
+    if (FEATURE_BMI270_SUSPEND) {
+        Wire.beginTransmission(0x68);
+        Wire.write(0x7D); // PWR_CTRL register
+        Wire.write(0x00); // Disable accelerometer and gyroscope
+        Wire.endTransmission();
+    }
 
-    // Check if this is an RTC wake from PMS150G power-off
-    if (HAS_PMS150G && PMS150G_AUTO_SHUTDOWN_ENABLED && power_was_rtc_wake()) {
+    // Phase 4: Check if this is an RTC wake from PMS150G power-off
+    if (PHASE4_PMS150G_SHUTDOWN && HAS_PMS150G && power_was_rtc_wake()) {
         power_clear_rtc_flag();
-
         init_display(&epaper);
 
         // Read RTC seconds (BCD-encoded, bit 7 = VL flag) for position offset
@@ -72,17 +77,16 @@ void setup() {
 
         power_setup_rtc_timer(PMS150G_RTC_WAKE_INTERVAL_MIN);
         power_off_pms150g();
-        // If power-off failed (e.g., USB connected), fall through to normal boot
     }
 
-    // Configure light sleep wake sources
-    esp_sleep_enable_timer_wakeup(SLEEP_WAKE_INTERVAL_MS * 1000);
-    gpio_wakeup_enable((gpio_num_t)TOUCH_INT, GPIO_INTR_LOW_LEVEL);
-    esp_sleep_enable_gpio_wakeup();
-
-    // Register idle hook to enter light sleep when all tasks are blocked
-    esp_register_freertos_idle_hook_for_cpu(idle_hook, 0);
-    esp_register_freertos_idle_hook_for_cpu(idle_hook, 1);
+    // Phase 2: Configure light sleep wake sources
+    if (PHASE2_LIGHT_SLEEP) {
+        esp_sleep_enable_timer_wakeup(SLEEP_WAKE_INTERVAL_MS * 1000);
+        gpio_wakeup_enable((gpio_num_t)TOUCH_INT, GPIO_INTR_LOW_LEVEL);
+        esp_sleep_enable_gpio_wakeup();
+        esp_register_freertos_idle_hook_for_cpu(idle_hook, 0);
+        esp_register_freertos_idle_hook_for_cpu(idle_hook, 1);
+    }
 
     // Initialize objects
     store_init(&store);
@@ -121,5 +125,5 @@ void setup() {
 }
 
 void loop() {
-    vTaskDelay(portMAX_DELAY); // Nothing to do here
+    vTaskDelay(portMAX_DELAY);
 }

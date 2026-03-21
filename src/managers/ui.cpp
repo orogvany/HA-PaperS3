@@ -40,7 +40,7 @@ void ui_main_screen_full_draw(UIState* state, BitDepth depth, Screen* screen, FA
     for (uint8_t widget_idx = 0; widget_idx < screen->widget_count; widget_idx++) {
         screen->widgets[widget_idx]->fullDraw(epaper, depth, state->widget_values[widget_idx]);
     }
-    if (HAS_BATTERY_ADC) {
+    if (FEATURE_BATTERY_INDICATOR && HAS_BATTERY_ADC) {
         drawBatteryIndicator(epaper, state->battery_percentage, state->battery_charging);
     }
 }

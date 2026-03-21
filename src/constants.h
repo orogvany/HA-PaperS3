@@ -3,6 +3,17 @@
 #include <cstddef>
 #include <cstdint>
 
+// ============================================================================
+// PHASE FEATURE FLAGS — set to false to disable individual power saving phases
+// Start with all OFF for baseline testing, enable one at a time
+// ============================================================================
+constexpr bool PHASE1_WIFI_MODEM_SLEEP = false;     // WiFi modem power save between DTIM beacons
+constexpr bool PHASE2_LIGHT_SLEEP = false;           // CPU light sleep via idle hook + interrupt-driven touch
+constexpr bool PHASE3_IDLE_WIFI_DISCONNECT = false;  // Disconnect WiFi after idle timeout
+constexpr bool PHASE4_PMS150G_SHUTDOWN = false;      // Deep power-off via PMS150G after extended idle
+constexpr bool FEATURE_BATTERY_INDICATOR = false;    // On-screen battery percentage
+constexpr bool FEATURE_BMI270_SUSPEND = false;       // Put gyroscope in suspend mode on boot
+
 // Buttons configuration
 constexpr uint8_t BUTTON_BORDER_SIZE = 4;
 constexpr uint8_t BUTTON_SIZE = 100;
