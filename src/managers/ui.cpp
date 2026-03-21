@@ -6,6 +6,7 @@
 #include "store.h"
 #include "widgets/Widget.h"
 #include <algorithm>
+#include <cstring>
 
 static const char* TAG = "ui";
 static const char* const TEXT_BOOT[] = {"Home Assistant", "e-paper remote", nullptr};
@@ -15,11 +16,11 @@ static const char* const TEXT_HASS_INVALID_KEY[] = {"Cannot connect", "to Home A
 static const char* const TEXT_GENERIC_ERROR[] = {"Unknown error", nullptr};
 
 void accumulate_damage(Rect& acc, const Rect& r) {
-    if (r.w <= 0 || r.h <= 0) {
+    if (r.w == 0 || r.h == 0) {
         return;
     }
 
-    if (acc.w <= 0 || acc.h <= 0) {
+    if (acc.w == 0 || acc.h == 0) {
         acc = r;
         return;
     }
@@ -38,6 +39,9 @@ void accumulate_damage(Rect& acc, const Rect& r) {
 void ui_main_screen_full_draw(UIState* state, BitDepth depth, Screen* screen, FASTEPD* epaper) {
     for (uint8_t widget_idx = 0; widget_idx < screen->widget_count; widget_idx++) {
         screen->widgets[widget_idx]->fullDraw(epaper, depth, state->widget_values[widget_idx]);
+    }
+    if (FEATURE_BATTERY_INDICATOR && HAS_BATTERY_ADC) {
+        drawBatteryIndicator(epaper, state->battery_percentage, state->battery_charging);
     }
 }
 
@@ -93,7 +97,7 @@ void ui_task(void* arg) {
                 if (current_state.mode == UiMode::MainScreen) {
                     // Display the main screen in its full glory
                     ui_main_screen_full_draw(&current_state, BitDepth::BD_4BPP, ctx->screen, ctx->epaper);
-                    ctx->epaper->fullUpdate(CLEAR_SLOW, true);
+                    ctx->epaper->fullUpdate(CLEAR_SLOW, false);
 
                     // Preload the 1BPP version for fast updates
                     ctx->epaper->setMode(BB_MODE_1BPP);
@@ -102,7 +106,10 @@ void ui_task(void* arg) {
                     ctx->epaper->backupPlane();
                 } else {
                     ui_show_message(current_state.mode, ctx->epaper);
-                    ctx->epaper->fullUpdate(CLEAR_SLOW, true);
+                    if (FEATURE_BATTERY_INDICATOR && HAS_BATTERY_ADC) {
+                        drawBatteryIndicator(ctx->epaper, current_state.battery_percentage, current_state.battery_charging);
+                    }
+                    ctx->epaper->fullUpdate(CLEAR_SLOW, false);
                 }
                 display_is_dirty = false;
             } else if (current_state.mode == UiMode::MainScreen) {
@@ -119,9 +126,15 @@ void ui_task(void* arg) {
                         accumulate_damage(damage_accum, damage);
                     }
                 }
+
+                if (HAS_BATTERY_ADC && (current_state.battery_percentage != displayed_state.battery_percentage ||
+                                        current_state.battery_charging != displayed_state.battery_charging)) {
+                    drawBatteryIndicator(ctx->epaper, current_state.battery_percentage, current_state.battery_charging);
+                    display_is_dirty = true;
+                }
                 if (damage_accum.w > 0 || damage_accum.h > 0) {
                     ESP_LOGI(TAG, "Launching partial update rows %d to %d", damage_accum.x, damage_accum.x + damage_accum.w);
-                    ctx->epaper->partialUpdate(true,
+                    ctx->epaper->partialUpdate(false,
                                                DISPLAY_WIDTH - (damage_accum.x + damage_accum.w), // row start (reversed)
                                                DISPLAY_WIDTH - damage_accum.x                     // row end (reversed)
                     );
@@ -139,7 +152,7 @@ void ui_task(void* arg) {
             ctx->epaper->setMode(BB_MODE_4BPP);
             ctx->epaper->fillScreen(0xf);
             ui_main_screen_full_draw(&displayed_state, BitDepth::BD_4BPP, ctx->screen, ctx->epaper);
-            ctx->epaper->fullUpdate(CLEAR_FAST, true);
+            ctx->epaper->fullUpdate(CLEAR_FAST, false);
 
             // Preload the 1bpp version for fast updates
             ctx->epaper->setMode(BB_MODE_1BPP);

@@ -1,6 +1,13 @@
 #include "boards.h"
 #include "config_remote.h"
 #include "constants.h"
+#include "draw.h"
+#include "driver/gpio.h"
+#include "esp_sleep.h"
+#include "esp_freertos_hooks.h"
+#include <Wire.h>
+#include "managers/battery.h"
+#include "managers/power.h"
 #include "managers/home_assistant.h"
 #include "managers/touch.h"
 #include "managers/ui.h"
@@ -22,26 +29,85 @@ static SharedUIState shared_ui_state;
 static UITaskArgs ui_task_args;
 static TouchTaskArgs touch_task_args;
 static HomeAssistantTaskArgs hass_task_args;
+static BatteryTaskArgs battery_task_args;
+
+static void init_display(FASTEPD* ep) {
+    ep->initPanel(DISPLAY_PANEL);
+    ep->setPanelSize(DISPLAY_HEIGHT, DISPLAY_WIDTH);
+    ep->setRotation(90);
+    ep->einkPower(true);
+}
+
+static bool idle_hook() {
+    esp_light_sleep_start();
+    return true;
+}
 
 void setup() {
+    Serial.begin(115200);
+    while (!Serial && millis() < 3000) { delay(10); } // Wait for USB CDC, max 3 seconds
+    Serial.println("=== M5Paper S3 HA Remote - Booting ===");
+    Serial.flush();
+
+    // Only init I2C early if we need it for BMI270 or Phase 4 RTC check
+    // (touch task handles its own I2C init via bbct->init())
+    if (FEATURE_BMI270_SUSPEND || (FEATURE_PMS150G_SHUTDOWN && HAS_PMS150G)) {
+        Wire.begin(TOUCH_SDA, TOUCH_SCL);
+    }
+
+    // Phase 3.5: Put BMI270 gyroscope into suspend mode (~3.5µA vs ~950µA)
+    if (FEATURE_BMI270_SUSPEND) {
+        Wire.beginTransmission(0x68);
+        Wire.write(0x7D); // PWR_CTRL register
+        Wire.write(0x00); // Disable accelerometer and gyroscope
+        Wire.endTransmission();
+    }
+
+    // Phase 4: Check if this is an RTC wake from PMS150G power-off
+    if (FEATURE_PMS150G_SHUTDOWN && HAS_PMS150G && power_was_rtc_wake()) {
+        power_clear_rtc_flag();
+        init_display(&epaper);
+
+        // Read RTC seconds (BCD-encoded, bit 7 = VL flag) for position offset
+        Wire.beginTransmission(BM8563_ADDR);
+        Wire.write(0x02); // Seconds register
+        Wire.endTransmission(false);
+        Wire.requestFrom((uint8_t)BM8563_ADDR, (uint8_t)1);
+        uint8_t raw = Wire.available() ? Wire.read() : 0;
+        uint8_t rtc_sec = ((raw & 0x70) >> 4) * 10 + (raw & 0x0F);
+        int16_t offset_x = (int16_t)((rtc_sec * 7) % 100) - 50;
+        int16_t offset_y = (int16_t)((rtc_sec * 13) % 80) - 40;
+
+        drawIdleScreen(&epaper, offset_x, offset_y);
+
+        power_setup_rtc_timer(PMS150G_RTC_WAKE_INTERVAL_MIN);
+        power_off_pms150g();
+    }
+
+    // Phase 2: Configure light sleep wake sources
+    if (FEATURE_LIGHT_SLEEP) {
+        esp_sleep_enable_timer_wakeup(SLEEP_WAKE_INTERVAL_MS * 1000);
+        gpio_wakeup_enable((gpio_num_t)TOUCH_INT, GPIO_INTR_LOW_LEVEL);
+        esp_sleep_enable_gpio_wakeup();
+        esp_register_freertos_idle_hook_for_cpu(idle_hook, 0);
+        esp_register_freertos_idle_hook_for_cpu(idle_hook, 1);
+    }
+
     // Initialize objects
     store_init(&store);
+    store_set_last_touch(&store, millis()); // Start idle timer from boot
     ui_state_init(&shared_ui_state);
     configure_remote(&config, &store, &screen);
     initialize_slider_sprites();
 
-    // Initialize display
-    epaper.initPanel(DISPLAY_PANEL);
-    epaper.setPanelSize(DISPLAY_HEIGHT, DISPLAY_WIDTH);
-    epaper.setRotation(90);
-    epaper.einkPower(true); // FIXME: Disabling power makes the GT911 unavailable
+    init_display(&epaper);
 
     // Launch UI task
     ui_task_args.epaper = &epaper;
     ui_task_args.screen = &screen;
     ui_task_args.store = &store;
     ui_task_args.shared_state = &shared_ui_state;
-    xTaskCreate(ui_task, "ui", 2048, &ui_task_args, 1, &store.ui_task);
+    xTaskCreate(ui_task, "ui", 4096, &ui_task_args, 1, &store.ui_task);
 
     // Connect to wifi and launch watcher
     launch_wifi(&config, &store);
@@ -49,6 +115,7 @@ void setup() {
     // Connect to home assistant
     hass_task_args.config = &config;
     hass_task_args.store = &store;
+    hass_task_args.epaper = &epaper;
     xTaskCreate(home_assistant_task, "home_assistant", 8192, &hass_task_args, 1, &store.home_assistant_task);
 
     // Launch touch task
@@ -57,8 +124,12 @@ void setup() {
     touch_task_args.state = &shared_ui_state;
     touch_task_args.store = &store;
     xTaskCreate(touch_task, "touch", 4096, &touch_task_args, 1, nullptr);
+
+    // Launch battery monitoring task
+    battery_task_args.store = &store;
+    xTaskCreate(battery_task, "battery", 2048, &battery_task_args, 1, nullptr);
 }
 
 void loop() {
-    vTaskDelay(portMAX_DELAY); // Nothing to do here
+    vTaskDelay(portMAX_DELAY);
 }

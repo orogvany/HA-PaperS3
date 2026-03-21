@@ -13,6 +13,15 @@ enum class CommandType : uint8_t {
     SetFanSpeedPercentage,
     SwitchOnOff,
     AutomationOnOff,
+    SetCoverPosition,
+    ActivateScene,
+    RunScript,
+    LockUnlock,
+    SetMediaPlayerVolume,
+    MediaPlayerPlayPause,
+    SetInputNumber,
+    InputBooleanToggle,
+    VacuumCommand,
 };
 
 struct HomeAssistantEntity {
@@ -35,12 +44,22 @@ enum class ConnState : uint8_t {
     Up,
 };
 
+struct BatteryState {
+    uint16_t voltage_mv = 0;
+    uint8_t percentage = 0;
+    bool charging = false;
+};
+
 struct EntityStore {
     ConnState wifi = ConnState::Initializing;
     ConnState home_assistant = ConnState::Initializing;
+    BatteryState battery;
 
     HomeAssistantEntity entities[MAX_ENTITIES];
     uint8_t entity_count;
+
+    uint32_t last_touch_ms = 0;
+    bool wifi_idle_disconnected = false;
 
     SemaphoreHandle_t mutex;
     TaskHandle_t home_assistant_task;
@@ -67,4 +86,9 @@ void store_ack_pending_command(EntityStore* store, const Command* command);
 void store_update_ui_state(EntityStore* store, const Screen* screen, UIState* ui_state);
 void store_wait_for_wifi_up(EntityStore* store);
 void store_flush_pending_commands(EntityStore* store);
+void store_set_battery(EntityStore* store, uint16_t voltage_mv, uint8_t percentage, bool charging);
+void store_set_last_touch(EntityStore* store, uint32_t ms);
+uint32_t store_get_last_touch(EntityStore* store);
+void store_set_wifi_idle(EntityStore* store, bool idle);
+bool store_get_wifi_idle(EntityStore* store);
 EntityRef store_add_entity(EntityStore* store, EntityConfig entity);

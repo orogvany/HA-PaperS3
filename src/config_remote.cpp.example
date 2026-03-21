@@ -16,7 +16,7 @@ void configure_remote(Configuration* config, EntityStore* store, Screen* screen)
     config->home_assistant_token = "ey...";
     config->root_ca = ISRG_ROOT_X1; // You probably don't need to update this
 
-    // Declare home assistant entities
+    // Declare home assistant entities -- todo - should use web interface to make this configurable in NVS.  Heck, wifi and HA stuff configurable via captive portal would be better.
     EntityConfig living_room_lights = {
         .entity_id = "light.silicon_labs_ezsp_lampes_salon",
         .command_type = CommandType::SetLightBrightnessPercentage,
@@ -37,6 +37,17 @@ void configure_remote(Configuration* config, EntityStore* store, Screen* screen)
         .entity_id = "automation.lumiere_nuit",
         .command_type = CommandType::AutomationOnOff,
     };
+
+    // Additional entity types available:
+    // EntityConfig blinds = {.entity_id = "cover.living_room", .command_type = CommandType::SetCoverPosition};
+    // EntityConfig movie_scene = {.entity_id = "scene.movie_mode", .command_type = CommandType::ActivateScene};
+    // EntityConfig script = {.entity_id = "script.goodnight", .command_type = CommandType::RunScript};
+    // EntityConfig front_door = {.entity_id = "lock.front_door", .command_type = CommandType::LockUnlock};
+    // EntityConfig speaker = {.entity_id = "media_player.living_room", .command_type = CommandType::SetMediaPlayerVolume};
+    // EntityConfig speaker_play = {.entity_id = "media_player.living_room", .command_type = CommandType::MediaPlayerPlayPause};
+    // EntityConfig helper_slider = {.entity_id = "input_number.target_temp", .command_type = CommandType::SetInputNumber};
+    // EntityConfig helper_toggle = {.entity_id = "input_boolean.guest_mode", .command_type = CommandType::InputBooleanToggle};
+    // EntityConfig vacuum = {.entity_id = "vacuum.roborock", .command_type = CommandType::VacuumCommand};
 
     // Add widgets
     screen_add_slider(

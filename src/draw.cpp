@@ -4,6 +4,7 @@
 #include <FastEPD.h>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 
 void drawCenteredIconWithText(FASTEPD* epaper, const uint8_t* icon, const char* const* lines, uint8_t line_spacing,
                               uint8_t icon_spacing) {
@@ -37,4 +38,78 @@ void drawCenteredIconWithText(FASTEPD* epaper, const uint8_t* icon, const char* 
 
         cursor_y += rect.h + line_spacing;
     }
+}
+
+constexpr uint16_t BATT_ICON_W = 28;
+constexpr uint16_t BATT_ICON_H = 14;
+constexpr uint16_t BATT_TIP_W = 3;
+constexpr uint16_t BATT_BORDER = 2;
+constexpr uint16_t BATT_MARGIN = 10;
+
+void drawBatteryIndicator(FASTEPD* epaper, uint8_t percentage, bool charging) {
+    char label[8];
+    if (charging) {
+        snprintf(label, sizeof(label), "%d%%+", percentage);
+    } else {
+        snprintf(label, sizeof(label), "%d%%", percentage);
+    }
+
+    BB_RECT text_rect;
+    epaper->setFont(Montserrat_Regular_26);
+    epaper->setTextColor(BBEP_BLACK);
+    epaper->getStringBox(label, &text_rect);
+
+    uint16_t total_w = BATT_ICON_W + BATT_TIP_W + 6 + text_rect.w;
+    uint16_t x = DISPLAY_HEIGHT - BATT_MARGIN - total_w;
+    uint16_t y = BATT_MARGIN;
+
+    // Clear the area
+    epaper->fillRect(x - 4, y - 2, total_w + 8, std::max((int)BATT_ICON_H, text_rect.h) + 4, 0xf);
+
+    // Battery outline
+    epaper->drawRect(x, y, BATT_ICON_W, BATT_ICON_H, BBEP_BLACK);
+    epaper->fillRect(x + BATT_ICON_W, y + 3, BATT_TIP_W, BATT_ICON_H - 6, BBEP_BLACK);
+
+    // Fill level
+    uint16_t fill_w = (BATT_ICON_W - 2 * BATT_BORDER) * percentage / 100;
+    if (fill_w > 0) {
+        epaper->fillRect(x + BATT_BORDER, y + BATT_BORDER, fill_w, BATT_ICON_H - 2 * BATT_BORDER, BBEP_BLACK);
+    }
+
+    // Percentage text
+    uint16_t text_x = x + BATT_ICON_W + BATT_TIP_W + 6;
+    epaper->setCursor(text_x, y + (BATT_ICON_H + text_rect.h) / 2 - 2);
+    epaper->write(label);
+}
+
+void drawIdleScreen(FASTEPD* epaper, int16_t offset_x, int16_t offset_y) {
+    epaper->setMode(BB_MODE_4BPP);
+    epaper->fillScreen(0xf);
+
+    BB_RECT rect;
+    epaper->setFont(Montserrat_Regular_26);
+    epaper->setTextColor(BBEP_BLACK);
+
+    const char* line1 = "Press button";
+    const char* line2 = "to wake";
+
+    BB_RECT r1, r2;
+    epaper->getStringBox(line1, &r1);
+    epaper->getStringBox(line2, &r2);
+
+    uint16_t total_h = r1.h + 10 + r2.h;
+    int16_t base_x = DISPLAY_WIDTH / 2;
+    int16_t base_y = (DISPLAY_HEIGHT - total_h) / 2;
+
+    int16_t x1 = base_x - r1.w / 2 + offset_x;
+    int16_t y1 = base_y + offset_y;
+    int16_t x2 = base_x - r2.w / 2 + offset_x;
+    int16_t y2 = y1 + r1.h + 10;
+
+    epaper->setCursor(std::max((int16_t)0, x1), std::max((int16_t)0, y1));
+    epaper->write(line1);
+    epaper->setCursor(std::max((int16_t)0, x2), std::max((int16_t)0, y2));
+    epaper->write(line2);
+
+    epaper->fullUpdate(CLEAR_SLOW, false);
 }

@@ -1,32 +1,33 @@
-#include <IPAddress.h> // fixes compilation issues with esp_websocket_client
-
+#include "boards.h"
 #include "config.h"
 #include "constants.h"
+#include "draw.h"
 #include "esp_log.h"
-#include "esp_websocket_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "managers/home_assistant.h"
+#include "managers/power.h"
 #include "store.h"
+#include <FastEPD.h>
+#include <WiFi.h>
+#include <WebSocketsClient.h>
 #include <cJSON.h>
 
 typedef struct home_assistant_context {
     EntityStore* store;
     Configuration* config;
-    esp_websocket_client_handle_t client;
+    WebSocketsClient* client;
     ConnState state;
     SemaphoreHandle_t mutex;
     TaskHandle_t task;
 
-    uint16_t event_id;                      // counter to send events
-    char json_buffer[HASS_MAX_JSON_BUFFER]; // Buffer for accumulating JSON data
-    size_t json_buffer_len;                 // Current buffer length
+    uint16_t event_id;
 
-    // Home assistant sends its updates per attribute. This means
-    // that if the a value is updated on an device in an off state,
-    // we will only receive the "brightness" or "percentage" field,
-    // but the actual "off" state was sent in a previous update.
-    // To handle that properly, we need to store those values.
+    String ws_host;
+    String ws_path;
+    uint16_t ws_port;
+    bool ws_ssl;
+
     uint8_t entity_count;
     const char* entity_ids[MAX_ENTITIES];
     bool entity_states[MAX_ENTITIES];
@@ -46,16 +47,12 @@ void hass_update_state(home_assistant_context_t* hass, ConnState state) {
         return;
     }
 
-    // Update the UI state
     if (state == ConnState::Initializing) {
-        // initial state at boot time, do nothing
     } else if (state == ConnState::ConnectionError && previous_state == ConnState::InvalidCredentials) {
-        // keep invalid credentials in the UI, do nothing
     } else {
         store_set_hass_state(hass->store, state);
     }
 
-    // Notify the main thread
     xTaskNotifyGive(hass->task);
 }
 
@@ -67,12 +64,17 @@ uint16_t hass_generate_event_id(home_assistant_context_t* hass) {
     return event_id;
 }
 
+void hass_send_text(home_assistant_context_t* hass, const char* text) {
+    hass->client->sendTXT(text, strlen(text));
+}
+
 void hass_cmd_authenticate(home_assistant_context_t* hass) {
     cJSON* root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "type", "auth");
     cJSON_AddStringToObject(root, "access_token", hass->config->home_assistant_token);
     const char* request = cJSON_PrintUnformatted(root);
-    esp_websocket_client_send_text(hass->client, request, strlen(request), portMAX_DELAY);
+    hass_send_text(hass, request);
+    cJSON_free((void*)request);
     cJSON_Delete(root);
 }
 
@@ -87,47 +89,58 @@ int16_t hass_match_entity(home_assistant_context_t* hass, char* key) {
 }
 
 void hass_parse_entity_update(home_assistant_context_t* hass, uint8_t widget_idx, cJSON* item) {
-    // Parse state
     cJSON* state = cJSON_GetObjectItem(item, "s");
     if (cJSON_IsString(state)) {
-        if (strcmp(state->valuestring, "on") == 0) {
+        if (strcmp(state->valuestring, "on") == 0 ||
+            strcmp(state->valuestring, "locked") == 0 ||
+            strcmp(state->valuestring, "playing") == 0 ||
+            strcmp(state->valuestring, "open") == 0) {
             hass->entity_states[widget_idx] = true;
-        } else if (strcmp(state->valuestring, "off") == 0) {
+        } else if (strcmp(state->valuestring, "off") == 0 ||
+                   strcmp(state->valuestring, "unlocked") == 0 ||
+                   strcmp(state->valuestring, "paused") == 0 ||
+                   strcmp(state->valuestring, "idle") == 0 ||
+                   strcmp(state->valuestring, "closed") == 0) {
             hass->entity_states[widget_idx] = false;
         }
     }
 
-    // Parse attributes
     cJSON* attributes = cJSON_GetObjectItem(item, "a");
     if (cJSON_IsObject(attributes)) {
-        // Extract percentage if available
         cJSON* percentage = cJSON_GetObjectItem(attributes, "percentage");
         if (cJSON_IsNumber(percentage)) {
             hass->entity_values[widget_idx] = percentage->valueint;
         }
 
-        // Extract brightness
         cJSON* brightness = cJSON_GetObjectItem(attributes, "brightness");
         if (cJSON_IsNumber(brightness)) {
-            hass->entity_values[widget_idx] = brightness->valueint * 100 / 254;
+            hass->entity_values[widget_idx] = brightness->valueint * 100 / 255;
         }
 
-        // Extract off_brightness
         cJSON* off_brightness = cJSON_GetObjectItem(attributes, "off_brightness");
         if (cJSON_IsNumber(off_brightness)) {
-            hass->entity_values[widget_idx] = off_brightness->valueint * 100 / 254;
+            hass->entity_values[widget_idx] = off_brightness->valueint * 100 / 255;
+        }
+
+        cJSON* current_position = cJSON_GetObjectItem(attributes, "current_position");
+        if (cJSON_IsNumber(current_position)) {
+            hass->entity_values[widget_idx] = current_position->valueint;
+        }
+
+        cJSON* volume_level = cJSON_GetObjectItem(attributes, "volume_level");
+        if (cJSON_IsNumber(volume_level)) {
+            hass->entity_values[widget_idx] = (int8_t)(volume_level->valuedouble * 100);
         }
     }
 
-    // Update the full state
     TickType_t now = xTaskGetTickCount();
-    if ((now - hass->last_command_sent_at_ms[widget_idx]) < pdMS_TO_TICKS(HASS_IGNORE_UPDATE_DELAY_MS)) {
+    if (hass->last_command_sent_at_ms[widget_idx] != 0 &&
+        (now - hass->last_command_sent_at_ms[widget_idx]) < pdMS_TO_TICKS(HASS_IGNORE_UPDATE_DELAY_MS)) {
         ESP_LOGI(TAG, "Ignoring update of entity %s", hass->entity_ids[widget_idx]);
     } else {
         uint8_t value = 0;
         if (hass->entity_states[widget_idx]) {
             if (hass->entity_values[widget_idx] == -1) {
-                // Unknown value, probably a switch
                 value = 1;
             } else {
                 value = hass->entity_values[widget_idx];
@@ -140,7 +153,6 @@ void hass_parse_entity_update(home_assistant_context_t* hass, uint8_t widget_idx
 }
 
 void hass_handle_entity_update(home_assistant_context_t* hass, cJSON* event) {
-    // Handle initial update
     cJSON* initial_values = cJSON_GetObjectItem(event, "a");
     if (cJSON_IsObject(initial_values)) {
         cJSON* item = NULL;
@@ -153,7 +165,6 @@ void hass_handle_entity_update(home_assistant_context_t* hass, cJSON* event) {
         }
     }
 
-    // Handle changes
     cJSON* changes = cJSON_GetObjectItem(event, "c");
     if (cJSON_IsObject(changes)) {
         cJSON* item = NULL;
@@ -169,23 +180,19 @@ void hass_handle_entity_update(home_assistant_context_t* hass, cJSON* event) {
         }
     }
 
-    // Update the state once we've received the first update
     hass_update_state(hass, ConnState::Up);
 }
 
 void hass_cmd_subscribe(home_assistant_context_t* hass) {
-    cJSON *root, *trigger, *entity_ids;
-    root = cJSON_CreateObject();
+    cJSON* root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "id", hass_generate_event_id(hass));
     cJSON_AddStringToObject(root, "type", "subscribe_entities");
     cJSON_AddItemToObject(root, "entity_ids", cJSON_CreateStringArray(hass->entity_ids, hass->entity_count));
 
-    // Send the data
     const char* request = cJSON_PrintUnformatted(root);
     ESP_LOGI(TAG, "%s", request);
-    esp_websocket_client_send_text(hass->client, request, strlen(request), portMAX_DELAY);
-
-    // Cleanup
+    hass_send_text(hass, request);
+    cJSON_free((void*)request);
     cJSON_Delete(root);
 }
 
@@ -198,93 +205,63 @@ void hass_handle_server_payload(home_assistant_context_t* hass, cJSON* json) {
             ESP_LOGI(TAG, "Logging in to home assistant...");
             hass_cmd_authenticate(hass);
         } else if (strcmp(type_item->valuestring, "auth_invalid") == 0) {
-            ESP_LOGI(TAG, "Updating state to InvalidCredentials");
             hass_update_state(hass, ConnState::InvalidCredentials);
         } else if (strcmp(type_item->valuestring, "auth_ok") == 0) {
             ESP_LOGI(TAG, "Authentication successful, subscribing to events");
             hass_cmd_subscribe(hass);
         } else if (strcmp(type_item->valuestring, "event") == 0) {
-            // it's nested soo far
             cJSON* event = cJSON_GetObjectItem(json, "event");
             if (cJSON_IsObject(event)) {
-                ESP_LOGI(TAG, "Handling state update");
                 hass_handle_entity_update(hass, event);
             }
-        } else {
-            ESP_LOGI(TAG, "Ignoring HASS event type %s", type_item->valuestring);
         }
     }
 }
 
-static void hass_ws_event_handler(void* handler_args, esp_event_base_t base, int32_t event_id, void* event_data) {
-    home_assistant_context_t* hass = (home_assistant_context_t*)handler_args;
-    esp_websocket_event_data_t* data = (esp_websocket_event_data_t*)event_data;
+static home_assistant_context_t* ws_hass_ctx = nullptr;
 
-    switch (event_id) {
-    case WEBSOCKET_EVENT_CONNECTED:
-        ESP_LOGI(TAG, "Received WEBSOCKET_EVENT_CONNECTED");
+static void hass_ws_event_handler(WStype_t type, uint8_t* payload, size_t length) {
+    home_assistant_context_t* hass = ws_hass_ctx;
+
+    switch (type) {
+    case WStype_CONNECTED:
+        ESP_LOGI(TAG, "WebSocket connected");
         break;
-    case WEBSOCKET_EVENT_DISCONNECTED:
-        ESP_LOGI(TAG, "Received WEBSOCKET_EVENT_DISCONNECTED");
+    case WStype_DISCONNECTED:
+        ESP_LOGI(TAG, "WebSocket disconnected");
         hass_update_state(hass, ConnState::ConnectionError);
         break;
-    case WEBSOCKET_EVENT_ERROR:
-        ESP_LOGI(TAG, "Received WEBSOCKET_EVENT_ERROR");
-        hass_update_state(hass, ConnState::ConnectionError);
-        break;
-    case WEBSOCKET_EVENT_DATA:
-        if (data->op_code == 0 || data->op_code == 1) {
-            // Data or continuation
-            ESP_LOGI(TAG, "Received WEBSOCKET_EVENT_DATA with op_code=%d", data->op_code);
-
-            xSemaphoreTake(hass->mutex, portMAX_DELAY);
-
-            if (data->payload_offset == 0) {
-                hass->json_buffer_len = 0;
-            }
-
-            if (data->payload_offset != hass->json_buffer_len) {
-                ESP_LOGE(TAG, "out of sync message, ignoring");
-                xSemaphoreGive(hass->mutex);
-                return;
-            }
-
-            if (hass->json_buffer_len + data->data_len >= HASS_MAX_JSON_BUFFER) {
-                ESP_LOGE(TAG, "JSON buffer overflow, discarding messages");
-                hass->json_buffer_len = 0;
-                xSemaphoreGive(hass->mutex);
-                return;
-            }
-
-            memcpy(hass->json_buffer + hass->json_buffer_len, data->data_ptr, data->data_len);
-            hass->json_buffer_len += data->data_len;
-
-            cJSON* json = nullptr;
-            if (hass->json_buffer_len == data->payload_len && hass->json_buffer_len > 0) {
-                json = cJSON_ParseWithLength(hass->json_buffer, hass->json_buffer_len);
-                if (!json) {
-                    ESP_LOGE(TAG, "JSON parsing failed");
-                }
-            }
-            xSemaphoreGive(hass->mutex);
-
-            if (json) {
-                hass_handle_server_payload(hass, json);
-                cJSON_Delete(json);
-            }
-        } else if (data->op_code == 8) {
-            ESP_LOGI(TAG, "Received Connection Close frame");
-            hass_update_state(hass, ConnState::ConnectionError);
+    case WStype_TEXT: {
+        cJSON* json = cJSON_ParseWithLength((const char*)payload, length);
+        if (json) {
+            hass_handle_server_payload(hass, json);
+            cJSON_Delete(json);
+        } else {
+            ESP_LOGE(TAG, "JSON parsing failed");
         }
-
+        break;
+    }
+    case WStype_ERROR:
+        ESP_LOGI(TAG, "WebSocket error");
+        hass_update_state(hass, ConnState::ConnectionError);
         break;
     default:
-        ESP_LOGI(TAG, "Unknown event type %d", event_id);
+        break;
     }
+}
+
+static void hass_ws_connect(home_assistant_context_t* hass) {
+    if (hass->ws_ssl) {
+        hass->client->beginSSL(hass->ws_host.c_str(), hass->ws_port, hass->ws_path.c_str(), nullptr, "");
+    } else {
+        hass->client->begin(hass->ws_host.c_str(), hass->ws_port, hass->ws_path.c_str());
+    }
+    hass->client->onEvent(hass_ws_event_handler);
+    hass->client->setReconnectInterval(HASS_RECONNECT_DELAY_MS);
+    hass->client->enableHeartbeat(30000, 10000, 2);
 }
 
 void hass_send_command(home_assistant_context_t* hass, Command* cmd) {
-    // Build json
     cJSON *root, *service_data;
     root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "id", hass_generate_event_id(hass));
@@ -325,21 +302,111 @@ void hass_send_command(home_assistant_context_t* hass, Command* cmd) {
         cJSON_AddItemToObject(root, "service_data", service_data = cJSON_CreateObject());
         cJSON_AddStringToObject(service_data, "entity_id", cmd->entity_id);
         break;
+    case CommandType::SetCoverPosition:
+        cJSON_AddStringToObject(root, "domain", "cover");
+        cJSON_AddStringToObject(root, "service", "set_cover_position");
+        cJSON_AddItemToObject(root, "service_data", service_data = cJSON_CreateObject());
+        cJSON_AddStringToObject(service_data, "entity_id", cmd->entity_id);
+        cJSON_AddNumberToObject(service_data, "position", cmd->value);
+        break;
+    case CommandType::ActivateScene:
+        cJSON_AddStringToObject(root, "domain", "scene");
+        cJSON_AddStringToObject(root, "service", "turn_on");
+        cJSON_AddItemToObject(root, "service_data", service_data = cJSON_CreateObject());
+        cJSON_AddStringToObject(service_data, "entity_id", cmd->entity_id);
+        break;
+    case CommandType::RunScript:
+        cJSON_AddStringToObject(root, "domain", "script");
+        cJSON_AddStringToObject(root, "service", "turn_on");
+        cJSON_AddItemToObject(root, "service_data", service_data = cJSON_CreateObject());
+        cJSON_AddStringToObject(service_data, "entity_id", cmd->entity_id);
+        break;
+    case CommandType::LockUnlock:
+        cJSON_AddStringToObject(root, "domain", "lock");
+        cJSON_AddStringToObject(root, "service", cmd->value == 0 ? "unlock" : "lock");
+        cJSON_AddItemToObject(root, "service_data", service_data = cJSON_CreateObject());
+        cJSON_AddStringToObject(service_data, "entity_id", cmd->entity_id);
+        break;
+    case CommandType::SetMediaPlayerVolume:
+        cJSON_AddStringToObject(root, "domain", "media_player");
+        cJSON_AddStringToObject(root, "service", "volume_set");
+        cJSON_AddItemToObject(root, "service_data", service_data = cJSON_CreateObject());
+        cJSON_AddStringToObject(service_data, "entity_id", cmd->entity_id);
+        cJSON_AddNumberToObject(service_data, "volume_level", cmd->value / 100.0);
+        break;
+    case CommandType::MediaPlayerPlayPause:
+        cJSON_AddStringToObject(root, "domain", "media_player");
+        cJSON_AddStringToObject(root, "service", cmd->value == 0 ? "media_pause" : "media_play");
+        cJSON_AddItemToObject(root, "service_data", service_data = cJSON_CreateObject());
+        cJSON_AddStringToObject(service_data, "entity_id", cmd->entity_id);
+        break;
+    case CommandType::SetInputNumber:
+        cJSON_AddStringToObject(root, "domain", "input_number");
+        cJSON_AddStringToObject(root, "service", "set_value");
+        cJSON_AddItemToObject(root, "service_data", service_data = cJSON_CreateObject());
+        cJSON_AddStringToObject(service_data, "entity_id", cmd->entity_id);
+        cJSON_AddNumberToObject(service_data, "value", cmd->value);
+        break;
+    case CommandType::InputBooleanToggle:
+        cJSON_AddStringToObject(root, "domain", "input_boolean");
+        cJSON_AddStringToObject(root, "service", cmd->value == 0 ? "turn_off" : "turn_on");
+        cJSON_AddItemToObject(root, "service_data", service_data = cJSON_CreateObject());
+        cJSON_AddStringToObject(service_data, "entity_id", cmd->entity_id);
+        break;
+    case CommandType::VacuumCommand:
+        cJSON_AddStringToObject(root, "domain", "vacuum");
+        if (cmd->value == 0) {
+            cJSON_AddStringToObject(root, "service", "stop");
+        } else if (cmd->value == 1) {
+            cJSON_AddStringToObject(root, "service", "start");
+        } else {
+            cJSON_AddStringToObject(root, "service", "return_to_base");
+        }
+        cJSON_AddItemToObject(root, "service_data", service_data = cJSON_CreateObject());
+        cJSON_AddStringToObject(service_data, "entity_id", cmd->entity_id);
+        break;
     default:
         ESP_LOGI(TAG, "Service type not supported");
         cJSON_Delete(root);
         return;
     }
 
-    // Send the data
     const char* request = cJSON_PrintUnformatted(root);
     ESP_LOGI(TAG, "Sending %s", request);
 
     hass->last_command_sent_at_ms[cmd->entity_idx] = xTaskGetTickCount();
-    esp_websocket_client_send_text(hass->client, request, strlen(request), portMAX_DELAY);
-
-    // Cleanup
+    hass_send_text(hass, request);
+    cJSON_free((void*)request);
     cJSON_Delete(root);
+}
+
+static void parse_url(const char* url, bool* use_ssl, String* host, uint16_t* port, String* path) {
+    String u(url);
+
+    if (u.startsWith("wss://")) {
+        *use_ssl = true;
+        u = u.substring(6);
+    } else if (u.startsWith("ws://")) {
+        *use_ssl = false;
+        u = u.substring(5);
+    }
+
+    int path_start = u.indexOf('/');
+    if (path_start == -1) {
+        *path = "/";
+    } else {
+        *path = u.substring(path_start);
+        u = u.substring(0, path_start);
+    }
+
+    int port_start = u.indexOf(':');
+    if (port_start == -1) {
+        *host = u;
+        *port = *use_ssl ? 443 : 80;
+    } else {
+        *host = u.substring(0, port_start);
+        *port = u.substring(port_start + 1).toInt();
+    }
 }
 
 void home_assistant_task(void* arg) {
@@ -350,15 +417,9 @@ void home_assistant_task(void* arg) {
     store_wait_for_wifi_up(store);
     ESP_LOGI(TAG, "Wifi is up, connecting...");
 
-    esp_websocket_client_config_t client_config = {
-        .uri = ctx->config->home_assistant_url,
-        .disable_auto_reconnect = true,
-        .cert_pem = ctx->config->root_ca,
-    };
     home_assistant_context_t* hass = new home_assistant_context_t{};
     hass->store = store;
     hass->config = ctx->config;
-    hass->client = esp_websocket_client_init(&client_config);
     hass->mutex = xSemaphoreCreateMutex();
     hass->event_id = 1;
     hass->entity_count = store->entity_count;
@@ -368,57 +429,81 @@ void home_assistant_task(void* arg) {
         hass->entity_values[entity_idx] = -1;
     }
 
-    esp_websocket_register_events(hass->client, WEBSOCKET_EVENT_ANY, hass_ws_event_handler, (void*)hass);
-    esp_err_t err = esp_websocket_client_start(hass->client);
-    ESP_LOGI(TAG, "esp_websocket_client_start returned: %s", esp_err_to_name(err));
+    ws_hass_ctx = hass;
 
-    // Main loop monitoring the state and sending commands
+    parse_url(ctx->config->home_assistant_url, &hass->ws_ssl, &hass->ws_host, &hass->ws_port, &hass->ws_path);
+
+    WebSocketsClient* wsClient = new WebSocketsClient();
+    hass->client = wsClient;
+
+    hass_ws_connect(hass);
+
     Command command;
-    bool previous_connect_failed = false;
+    bool wifi_is_off = false;
+
     while (1) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(SLEEP_WAKE_INTERVAL_MS));
 
-        xSemaphoreTake(hass->mutex, portMAX_DELAY);
-        ConnState state = hass->state;
-        xSemaphoreGive(hass->mutex);
-
-        // Reconnect if the client was disconnected
-        if (state == ConnState::InvalidCredentials || state == ConnState::ConnectionError) {
-            ESP_LOGI(TAG, "Client is no longer connected, reconnecting...");
-
-            // Close the client
-            err = esp_websocket_client_close(hass->client, portMAX_DELAY);
-            ESP_LOGI(TAG, "esp_websocket_client_close returned %s", esp_err_to_name(err));
-
-            // Wait until wifi is up
-            store_wait_for_wifi_up(store);
-
-            // If previous connection failed, wait 10s to avoid spamming
-            // home assistant
-            if (previous_connect_failed) {
-                ESP_LOGI(TAG, "Waiting 10 seconds");
-                vTaskDelay(pdMS_TO_TICKS(HASS_RECONNECT_DELAY_MS));
+        // Phase 3: Check if touch woke us from idle WiFi disconnect
+        if (FEATURE_IDLE_WIFI_DISCONNECT && wifi_is_off && !store_get_wifi_idle(store)) {
+            ESP_LOGI(TAG, "Touch detected, reconnecting WiFi...");
+            WiFi.mode(WIFI_STA);
+            if (FEATURE_WIFI_MODEM_SLEEP) {
+                WiFi.setSleep(WIFI_PS_MIN_MODEM);
             }
-            previous_connect_failed = true;
-
-            // Reset the state and restart the client
-            ESP_LOGI(TAG, "attempting to reconnect to home assistant");
+            WiFi.begin(hass->config->wifi_ssid, hass->config->wifi_password);
+            wifi_is_off = false;
             hass->state = ConnState::Initializing;
             hass->event_id = 1;
-            store_flush_pending_commands(hass->store);
+            store_flush_pending_commands(store);
+            store_wait_for_wifi_up(store);
 
-            // Restart the client
-            err = esp_websocket_client_start(hass->client);
-            ESP_LOGI(TAG, "esp_websocket_client_start returned %s", esp_err_to_name(err));
+            hass_ws_connect(hass);
+            continue;
         }
 
-        // Launch commands
-        else if (state == ConnState::Up) {
-            previous_connect_failed = false;
-            while (store_get_pending_command(store, &command)) {
-                hass_send_command(hass, &command);
-                store_ack_pending_command(store, &command);
-                vTaskDelay(pdMS_TO_TICKS(HASS_TASK_SEND_DELAY_MS));
+        // Phase 3: Check for idle timeout → disconnect WiFi
+        if (FEATURE_IDLE_WIFI_DISCONNECT) {
+            uint32_t last_touch = store_get_last_touch(store);
+            if (!wifi_is_off && last_touch > 0) {
+                uint32_t idle_ms = millis() - last_touch;
+                if (idle_ms > IDLE_WIFI_DISCONNECT_MS) {
+                    ESP_LOGI(TAG, "Idle timeout, disconnecting WiFi (screen unchanged)");
+                    store_set_wifi_idle(store, true); // Set before disconnect so WiFi event handler knows
+                    wifi_is_off = true;
+                    wsClient->disconnect();
+                    WiFi.disconnect(true);
+                    WiFi.mode(WIFI_OFF);
+                    // Don't update UI state — leave screen as-is so it looks normal
+                    continue;
+                }
+            }
+
+            // Phase 4: Check for deep idle → PMS150G shutdown
+            if (FEATURE_PMS150G_SHUTDOWN && wifi_is_off && HAS_PMS150G && last_touch > 0) {
+                uint32_t idle_ms = millis() - last_touch;
+                if (idle_ms > PMS150G_SHUTDOWN_IDLE_MS) {
+                    ESP_LOGI(TAG, "Deep idle timeout, entering PMS150G shutdown");
+                    drawIdleScreen(ctx->epaper, 0, 0);
+                    power_setup_rtc_timer(PMS150G_RTC_WAKE_INTERVAL_MIN);
+                    power_off_pms150g();
+                }
+            }
+        }
+
+        if (!wifi_is_off) {
+            wsClient->loop();
+
+            xSemaphoreTake(hass->mutex, portMAX_DELAY);
+            ConnState state = hass->state;
+            xSemaphoreGive(hass->mutex);
+
+            if (state == ConnState::Up) {
+                while (store_get_pending_command(store, &command)) {
+                    hass_send_command(hass, &command);
+                    store_ack_pending_command(store, &command);
+                    vTaskDelay(pdMS_TO_TICKS(HASS_TASK_SEND_DELAY_MS));
+                }
             }
         }
     }

@@ -5,7 +5,6 @@ e-Ink remote for Home Assistant built with [FastEPD](https://github.com/bitbank2
 ![Preview](./preview.jpg)
 
 It uses the websocket API of Home Assistant, no plugin is required on the server.
-As it stays permanently connected to the Wifi to get updates, the remote only lasts a few hours on battery.
 
 ## Hardware supported
 
@@ -16,16 +15,20 @@ As it stays permanently connected to the Wifi to get updates, the remote only la
 
 You will need to install [PlatformIO](https://platformio.org/) to compile the project.
 
-### Generate icons
+### 1. Generate icons
 
 Find the icons for your buttons at [Pictogrammers](https://pictogrammers.com/library/mdi/).
 Use "Download PNG (256x256)" and place your icons in the `icons-buttons` folder.
 Make sure you have an icon for the "on" state and one for the "off" state of each of your buttons.
 
-Then run the python script `generate-icons.py` to generate the file `src/assets/icons.h`.
-You will need to install the library [Pillow](https://pillow.readthedocs.io/en/stable/installation/basic-installation.html#basic-installation) to run this script.
+Then run the python script to generate `src/assets/icons.h`:
 
-### Get a home assistant token
+```
+pip install Pillow
+python3 generate-icons.py
+```
+
+### 2. Get a Home Assistant token
 
 In Home Assistant:
 
@@ -34,9 +37,35 @@ In Home Assistant:
 - Click on "Create Token" in the "Long-lived access tokens" section
 - Note the token generated
 
-### Update configuration
+### 3. Update configuration
 
-Copy `src/config_remote.cpp.example` to `src/config_remote.cpp` then update the file accordingly.
+Copy the example config and fill in your credentials:
+
+```
+cp src/config_remote.cpp.example src/config_remote.cpp
+```
+
+Edit `src/config_remote.cpp` with your WiFi SSID/password, Home Assistant URL, token, and entity configuration.
+
+### 4. Build and upload
+
+```
+# For M5Paper S3
+pio run -e m5-papers3
+pio run -e m5-papers3 --target upload
+
+# For Lilygo T5 E-Paper S3 Pro
+pio run -e lilygo-t5-s3
+pio run -e lilygo-t5-s3 --target upload
+```
+
+## Features
+
+- On-screen battery percentage indicator (M5Paper S3)
+- WebSocket connection to Home Assistant for real-time entity state updates
+- Slider widgets for dimmable lights and fan speed
+- Toggle button widgets for switches and automations
+- Partial display updates for responsive touch interaction
 
 ## Notes
 
@@ -64,6 +93,3 @@ This repository contains resources from:
 
 - https://github.com/Templarian/MaterialDesign (SIL OPEN FONT LICENSE Version 1.1)
 - https://github.com/JulietaUla/Montserrat (Apache License 2.0)
-
-
-
