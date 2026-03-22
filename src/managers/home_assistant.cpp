@@ -1,5 +1,6 @@
 #include "boards.h"
 #include "config.h"
+#include "wake_lock.h"
 #include "constants.h"
 #include "draw.h"
 #include "esp_log.h"
@@ -492,6 +493,7 @@ void home_assistant_task(void* arg) {
         }
 
         if (!wifi_is_off) {
+            wake_lock_acquire();
             wsClient->loop();
 
             xSemaphoreTake(hass->mutex, portMAX_DELAY);
@@ -505,6 +507,7 @@ void home_assistant_task(void* arg) {
                     vTaskDelay(pdMS_TO_TICKS(HASS_TASK_SEND_DELAY_MS));
                 }
             }
+            wake_lock_release();
         }
     }
 }

@@ -7,6 +7,7 @@
 #include "esp_timer.h"
 #include "esp_freertos_hooks.h"
 #include <Wire.h>
+#include "wake_lock.h"
 #include "managers/battery.h"
 #include "managers/power.h"
 #include "managers/home_assistant.h"
@@ -47,6 +48,9 @@ static bool idle_hook() {
 
     // Don't sleep if USB is connected (preserves serial debug)
     if (usb_connected) return false;
+
+    // Don't sleep while any task is doing hardware I/O
+    if (wake_lock_is_held()) return false;
 
     // Don't sleep again too quickly — give tasks time to run after wake
     static int64_t last_wake = 0;
@@ -117,6 +121,7 @@ void setup() {
     }
 
     // Initialize objects
+    wake_lock_init();
     store_init(&store);
     store_set_last_touch(&store, millis()); // Start idle timer from boot
 

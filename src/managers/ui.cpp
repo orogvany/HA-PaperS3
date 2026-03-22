@@ -4,6 +4,7 @@
 #include "constants.h"
 #include "draw.h"
 #include "store.h"
+#include "wake_lock.h"
 #include "widgets/Widget.h"
 #include <algorithm>
 #include <cstring>
@@ -88,7 +89,8 @@ void ui_task(void* arg) {
         if (ulTaskNotifyTake(pdTRUE, notify_timeout)) {
             store_update_ui_state(ctx->store, ctx->screen, &current_state);
 
-            // Handle screen change
+            // Handle screen change — hold wake lock during all display operations
+            wake_lock_acquire();
             size_t widget_idx;
             if (current_state.mode != displayed_state.mode) {
                 ctx->epaper->setMode(BB_MODE_4BPP);
@@ -145,22 +147,23 @@ void ui_task(void* arg) {
             // Save new state
             displayed_state = current_state;
             ui_state_set(ctx->shared_state, &displayed_state);
+            wake_lock_release();
         } else if (display_is_dirty) {
             ESP_LOGI(TAG, "Forcing a full refresh of the display");
+            wake_lock_acquire();
 
-            // Cleanup the display
             ctx->epaper->setMode(BB_MODE_4BPP);
             ctx->epaper->fillScreen(0xf);
             ui_main_screen_full_draw(&displayed_state, BitDepth::BD_4BPP, ctx->screen, ctx->epaper);
             ctx->epaper->fullUpdate(CLEAR_FAST, false);
 
-            // Preload the 1bpp version for fast updates
             ctx->epaper->setMode(BB_MODE_1BPP);
             ctx->epaper->fillScreen(BBEP_WHITE);
             ui_main_screen_full_draw(&displayed_state, BitDepth::BD_1BPP, ctx->screen, ctx->epaper);
             ctx->epaper->backupPlane();
 
             display_is_dirty = false;
+            wake_lock_release();
         }
     }
 }

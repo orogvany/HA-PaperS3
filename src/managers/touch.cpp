@@ -1,6 +1,7 @@
 #include "managers/touch.h"
 #include "boards.h"
 #include "constants.h"
+#include "wake_lock.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include <Arduino.h>
@@ -54,7 +55,11 @@ void touch_task(void* arg) {
     }
 
     while (true) {
-        if (bbct->getSamples(&ti)) {
+        wake_lock_acquire(); // Hold wake lock during I2C touch read
+        bool has_touch = bbct->getSamples(&ti);
+        if (!has_touch) wake_lock_release();
+
+        if (has_touch) {
             last_touch_ms = millis();
 
             // Phase 3: track touch time and trigger WiFi reconnect if idle-disconnected
@@ -102,6 +107,7 @@ void touch_task(void* arg) {
                     }
                 }
             }
+            wake_lock_release(); // Done with touch processing
         } else {
             if (touching) {
                 if (millis() - last_touch_ms > TOUCH_RELEASE_TIMEOUT_MS) {
