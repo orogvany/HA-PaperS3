@@ -1,6 +1,7 @@
 #pragma once
 
 #include "constants.h"
+#include "entity_value.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include <cstdint>
@@ -22,7 +23,7 @@ enum class UiMode : uint8_t {
 
 struct UIState {
     UiMode mode = UiMode::Blank;
-    uint8_t widget_values[MAX_WIDGETS_PER_SCREEN] = {};
+    EntityValue entity_values[MAX_WIDGETS_PER_SCREEN] = {};
     uint8_t battery_percentage = 0;
     bool battery_charging = false;
     uint8_t pin_digits_entered = 0;

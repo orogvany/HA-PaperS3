@@ -254,7 +254,7 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
             devices.forEach(d => {
                 const added = activeIds.includes(d.entity_id);
                 const stateClass = (d.state === 'on' || d.state === 'playing' || d.state === 'open') ? 'dev-state-on' : 'dev-state-off';
-                const widgetGuess = ['light','fan','cover','input_number','media_player'].includes(d.domain) ? 'slider' : 'button';
+                const widgetGuess = d.domain === 'weather' ? 'weather' : ['light','fan','cover','input_number','media_player'].includes(d.domain) ? 'slider' : 'button';
                 html += '<tr>';
                 html += '<td>' + (added ? '<span style="color:#2e7d32">Added</span>' :
                     '<button class="btn btn-sm btn-outline" onclick="addDevice(\'' + esc(d.entity_id) + '\',\'' + esc(d.friendly_name) + '\',\'' + widgetGuess + '\')">Add</button>') + '</td>';
@@ -364,9 +364,11 @@ static void handle_ha_discover() {
 
     HTTPClient http;
     String url = String(cfg.ha_url) + "/api/states";
+    ESP_LOGI(TAG, "Discovery: GET %s", url.c_str());
     http.begin(url);
     http.addHeader("Authorization", String("Bearer ") + cfg.ha_token);
     int code = http.GET();
+    ESP_LOGI(TAG, "Discovery: HA returned %d", code);
 
     if (code != 200) {
         char err[64];
@@ -380,9 +382,12 @@ static void handle_ha_discover() {
     String response = http.getString();
     http.end();
 
+    ESP_LOGI(TAG, "Discovery: response size %d bytes", response.length());
+
     JsonDocument ha_doc;
-    DeserializationError err = deserializeJson(ha_doc, response);
+    DeserializationError err = deserializeJson(ha_doc, response, DeserializationOption::NestingLimit(20));
     if (err) {
+        ESP_LOGE(TAG, "Discovery: JSON parse failed: %s (response %d bytes)", err.c_str(), response.length());
         server->send(500, "application/json", "{\"error\":\"Failed to parse HA response\"}");
         return;
     }
@@ -393,7 +398,7 @@ static void handle_ha_discover() {
 
     const char* domains[] = {"light", "switch", "fan", "cover", "scene", "script",
                               "lock", "media_player", "input_number", "input_boolean",
-                              "automation", "vacuum"};
+                              "automation", "vacuum", "weather"};
     int domain_count = sizeof(domains) / sizeof(domains[0]);
 
     for (JsonObject entity : ha_doc.as<JsonArray>()) {

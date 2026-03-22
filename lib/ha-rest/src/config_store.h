@@ -2,6 +2,9 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
+// NVS config schema version - bump on breaking changes, triggers wipe + reconfigure
+constexpr int CONFIG_VERSION = 2;
+
 // Maximum number of devices we can track
 constexpr int MAX_KNOWN_DEVICES = 64;
 constexpr int MAX_UI_DEVICES = 8;
@@ -18,7 +21,7 @@ struct KnownDevice {
 struct UIDevice {
     char entity_id[64];
     char label[32];
-    char widget_type[8];      // "slider" or "button"
+    char widget_type[16];     // "slider", "button", or "weather"
     char icon_on[32];
     char icon_off[32];
     int sort_order;
@@ -26,11 +29,19 @@ struct UIDevice {
     uint16_t pos_y;
     uint16_t width;
     uint16_t height;
+
+    // Weather source config (only used when widget_type == "weather")
+    char weather_source[8];   // "ha" or "owm"
+    char owm_api_key[48];
+    char owm_location[48];
+    char owm_units[12];       // "imperial" or "metric"
 };
 
 // Centralized configuration - loaded from NVS as a single JSON blob.
 // All values have defaults so the system works even with empty NVS.
 struct AppConfig {
+    int config_version = 0;
+
     // WiFi
     char wifi_ssid[33];
     char wifi_password[65];

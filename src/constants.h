@@ -64,7 +64,7 @@ constexpr uint8_t BUTTON_SIZE = 100;
 constexpr uint8_t BUTTON_ICON_SIZE = 64;
 constexpr uint8_t SLIDER_OFFSET = 100;                       // Slider zero offset from left edge
 constexpr uint8_t TOUCH_AREA_MARGIN = 15;                    // Touch hit area expansion (px)
-constexpr uint32_t DISPLAY_FULL_REDRAW_TIMEOUT_MS = 30000;   // Full refresh to clear ghosting
+constexpr uint32_t DISPLAY_FULL_REDRAW_TIMEOUT_MS = 5000;    // Full refresh to clear ghosting
 
 // ============================================================================
 // HOME ASSISTANT REST API CONFIGURATION

@@ -82,7 +82,9 @@ Slider::Slider(const char* label, const uint8_t* on_icon, const uint8_t* off_ico
         Rect{static_cast<uint16_t>(x_min < 0 ? 0 : x_min), static_cast<uint16_t>(y_min < 0 ? 0 : y_min), hitbox_width, hitbox_height};
 }
 
-Rect Slider::partialDraw(FASTEPD* display, BitDepth depth, uint8_t from, uint8_t to) {
+Rect Slider::partialDraw(FASTEPD* display, BitDepth depth, const EntityValue& from_val, const EntityValue& to_val) {
+    uint8_t from = from_val.range;
+    uint8_t to = to_val.range;
     uint8_t white;
     FASTEPD* sprite_left_full;
     FASTEPD* sprite_left_empty;
@@ -172,14 +174,17 @@ Rect Slider::partialDraw(FASTEPD* display, BitDepth depth, uint8_t from, uint8_t
     return Rect{static_cast<uint16_t>(rect_.x + x0), y, static_cast<uint16_t>(x1 - x0 + BUTTON_SIZE / 2), BUTTON_SIZE};
 }
 
-void Slider::fullDraw(FASTEPD* display, BitDepth depth, uint8_t value) {
+void Slider::fullDraw(FASTEPD* display, BitDepth depth, const EntityValue& value) {
     // We need a black background to handle the borders of the slider
     display->fillRect(rect_.x, rect_.y + rect_.h - BUTTON_SIZE, rect_.w, BUTTON_SIZE, BBEP_BLACK);
 
-    // We don't really care about performance here
-    partialDraw(display, depth, 100, 0);
-    if (value > 0) {
-        partialDraw(display, depth, 0, value);
+    EntityValue full;
+    full.range = 100;
+    EntityValue zero;
+    zero.range = 0;
+    partialDraw(display, depth, full, zero);
+    if (value.range > 0) {
+        partialDraw(display, depth, zero, value);
     }
 
     // Add the title

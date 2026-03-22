@@ -7,6 +7,7 @@ WIDGET_ICON_SIZE = (64, 64)
 UI_ICON_SIZE = (256, 256)
 CHROME_ICON_SIZE = (64, 64)
 STATUSBAR_ICON_SIZE = (24, 24)
+WEATHER_ICON_SIZE = (128, 128)
 HEADER = """// AUTO-GENERATED FILE — DO NOT EDIT
 #pragma once
 #include <pgmspace.h>
@@ -63,6 +64,8 @@ def main() -> None:
             handle_file(file_path, out, CHROME_ICON_SIZE, "chrome_")
         for file_path in sorted(glob.glob("icons-statusbar/*.png")):
             handle_file(file_path, out, STATUSBAR_ICON_SIZE, "status_")
+        for file_path in sorted(glob.glob("icons-weather/*.png")):
+            handle_file(file_path, out, WEATHER_ICON_SIZE, "weather_")
 
     print("Done")
 

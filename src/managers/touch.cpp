@@ -260,7 +260,7 @@ void touch_task(void* arg) {
                         ESP_LOGI(TAG, "Starting touch on widget %d", widget_idx);
                         active_widget = widget_idx;
 
-                        widget_original_value = ui_state->widget_values[widget_idx];
+                        widget_original_value = ui_state->entity_values[widget_idx].range;
                         widget_current_value = screen->widgets[widget_idx]->getValueFromTouch(&touch_event, widget_original_value);
                         store_send_command(store, screen->entity_ids[active_widget], widget_current_value);
                         break;

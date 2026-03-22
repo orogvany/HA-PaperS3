@@ -40,7 +40,7 @@ void accumulate_damage(Rect& acc, const Rect& r) {
 
 void ui_main_screen_full_draw(UIState* state, BitDepth depth, Screen* screen, FASTEPD* epaper) {
     for (uint8_t widget_idx = 0; widget_idx < screen->widget_count; widget_idx++) {
-        screen->widgets[widget_idx]->fullDraw(epaper, depth, state->widget_values[widget_idx]);
+        screen->widgets[widget_idx]->fullDraw(epaper, depth, state->entity_values[widget_idx]);
     }
     drawStatusBar(epaper, state->wifi_connected, state->ha_connected,
                   state->battery_percentage, state->battery_charging,
@@ -165,14 +165,17 @@ void ui_task(void* arg) {
                 Rect damage_accum = {};
 
                 for (widget_idx = 0; widget_idx < ctx->screen->widget_count; widget_idx++) {
-                    uint8_t displayed_value = displayed_state.widget_values[widget_idx];
-                    uint8_t current_value = current_state.widget_values[widget_idx];
+                    const EntityValue& displayed_value = displayed_state.entity_values[widget_idx];
+                    const EntityValue& current_value = current_state.entity_values[widget_idx];
 
-                    if (displayed_value != current_value) {
-                        ESP_LOGI(TAG, "updating widget %d from %d to %d", widget_idx, displayed_value, current_value);
+                    if (memcmp(&displayed_value, &current_value, sizeof(EntityValue)) != 0) {
+                        ESP_LOGI(TAG, "updating widget %d", widget_idx);
                         Rect damage = ctx->screen->widgets[widget_idx]->partialDraw(ctx->epaper, BitDepth::BD_1BPP, displayed_value,
                                                                                     current_value);
                         accumulate_damage(damage_accum, damage);
+                        if (damage.w == 0 && damage.h == 0) {
+                            display_is_dirty = true;
+                        }
                     }
                 }
 

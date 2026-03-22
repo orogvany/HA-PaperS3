@@ -1,5 +1,6 @@
 #pragma once
 
+#include "entity_value.h"
 #include <FastEPD.h>
 #include <cstdint>
 
@@ -23,8 +24,8 @@ enum class BitDepth : uint8_t {
 class Widget {
 public:
     virtual ~Widget() = default;
-    virtual void fullDraw(FASTEPD* display, BitDepth depth, uint8_t value) = 0;
-    virtual Rect partialDraw(FASTEPD* display, BitDepth depth, uint8_t from, uint8_t to) = 0;
+    virtual void fullDraw(FASTEPD* display, BitDepth depth, const EntityValue& value) = 0;
+    virtual Rect partialDraw(FASTEPD* display, BitDepth depth, const EntityValue& from, const EntityValue& to) = 0;
     virtual bool isTouching(const TouchEvent* touch_event) const = 0;
     virtual uint8_t getValueFromTouch(const TouchEvent* touch_event, uint8_t original_value) const = 0;
 };

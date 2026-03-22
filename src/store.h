@@ -1,6 +1,7 @@
 #pragma once
 #include "constants.h"
 #include "entity_ref.h"
+#include "entity_value.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/semphr.h"
@@ -27,14 +28,17 @@ enum class CommandType : uint8_t {
 struct HomeAssistantEntity {
     const char* entity_id;
     CommandType command_type;
-    uint8_t current_value;
+    EntityValue current;
     uint8_t command_value;
     bool command_pending;
+    bool read_only = false;
 };
 
 struct EntityConfig {
     const char* entity_id;
     CommandType command_type;
+    EntityValueType value_type = EntityValueType::Toggle;
+    bool read_only = false;
 };
 
 enum class ConnState : uint8_t {
@@ -84,6 +88,7 @@ void store_init(EntityStore* store);
 void store_set_wifi_state(EntityStore* store, ConnState state);
 void store_set_hass_state(EntityStore* store, ConnState state);
 void store_update_value(EntityStore* store, uint8_t entity_idx, uint8_t value);
+void store_update_weather(EntityStore* store, uint8_t entity_idx, const WeatherState& weather);
 void store_send_command(EntityStore* store, uint8_t entity_idx, uint8_t value);
 bool store_get_pending_command(EntityStore* store, Command* command);
 void store_ack_pending_command(EntityStore* store, const Command* command);

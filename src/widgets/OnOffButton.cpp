@@ -42,8 +42,8 @@ OnOffButton::OnOffButton(const char* label, const uint8_t* on_icon, const uint8_
              static_cast<uint16_t>(BUTTON_SIZE + 2 * TOUCH_AREA_MARGIN), static_cast<uint16_t>(BUTTON_SIZE + 2 * TOUCH_AREA_MARGIN)};
 }
 
-Rect OnOffButton::partialDraw(FASTEPD* display, BitDepth depth, uint8_t from, uint8_t to) {
-    if (to) {
+Rect OnOffButton::partialDraw(FASTEPD* display, BitDepth depth, const EntityValue& from, const EntityValue& to) {
+    if (to.toggle) {
         if (depth == BitDepth::BD_4BPP) {
             display->drawSprite(&on_sprite_4bpp, rect_.x, rect_.y);
         } else {
@@ -60,8 +60,10 @@ Rect OnOffButton::partialDraw(FASTEPD* display, BitDepth depth, uint8_t from, ui
     return Rect{rect_.x, rect_.y, BUTTON_SIZE + 1, BUTTON_SIZE + 1};
 }
 
-void OnOffButton::fullDraw(FASTEPD* display, BitDepth depth, uint8_t value) {
-    partialDraw(display, depth, 0, value);
+void OnOffButton::fullDraw(FASTEPD* display, BitDepth depth, const EntityValue& value) {
+    EntityValue zero;
+    zero.toggle = 0;
+    partialDraw(display, depth, zero, value);
 
     // Add the title
     BB_RECT rect;

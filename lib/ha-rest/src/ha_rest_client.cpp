@@ -80,6 +80,12 @@ bool HARestClient::getEntityState(const char* entity_id, HAEntityState* out) {
     out->current_position = attrs["current_position"] | -1;
     out->volume_level = attrs["volume_level"] | -1.0;
 
+    // Weather attributes
+    out->temperature = attrs["temperature"] | -999.0;
+    out->humidity = attrs["humidity"] | -1;
+    const char* unit = attrs["temperature_unit"] | "";
+    out->temperature_unit = (strstr(unit, "C") != nullptr) ? 'C' : 'F';
+
     return true;
 }
 

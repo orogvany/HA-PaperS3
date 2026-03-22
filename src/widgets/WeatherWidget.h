@@ -1,11 +1,21 @@
 #pragma once
 
+#include "entity_ref.h"
 #include "widgets/Widget.h"
 #include <FastEPD.h>
 
-class OnOffButton : public Widget {
+struct WeatherWidgetConfig {
+    EntityRef entity_ref;
+    const char* label;
+    uint16_t pos_x;
+    uint16_t pos_y;
+    uint16_t width;
+    uint16_t height;
+};
+
+class WeatherWidget : public Widget {
 public:
-    OnOffButton(const char* label, const uint8_t* on_icon, const uint8_t* off_icon, Rect rect);
+    WeatherWidget(const char* label, Rect rect);
 
     void fullDraw(FASTEPD* display, BitDepth depth, const EntityValue& value) override;
     Rect partialDraw(FASTEPD* display, BitDepth depth, const EntityValue& from, const EntityValue& to) override;
@@ -14,10 +24,5 @@ public:
 
 private:
     const char* label_;
-    FASTEPD off_sprite_4bpp;
-    FASTEPD on_sprite_4bpp;
-    FASTEPD off_sprite_1bpp;
-    FASTEPD on_sprite_1bpp;
     Rect rect_;
-    Rect hit_rect_;
 };

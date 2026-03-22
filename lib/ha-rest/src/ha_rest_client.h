@@ -12,12 +12,19 @@ struct HAConfig {
 
 struct HAEntityState {
     char entity_id[64];
-    char state[32];          // "on", "off", "52.0", etc.
+    char state[32];          // "on", "off", "52.0", "sunny", etc.
     int brightness = -1;     // 0-255, -1 = not applicable
     int percentage = -1;     // 0-100, -1 = not applicable
     int current_position = -1;
     double volume_level = -1;
     char friendly_name[48];
+
+    // Weather attributes
+    double temperature = -999;
+    double temperature_high = -999;
+    double temperature_low = -999;
+    int humidity = -1;
+    char temperature_unit = 'F';
 };
 
 class HARestClient {

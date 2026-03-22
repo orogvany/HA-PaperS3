@@ -2,6 +2,7 @@
 
 #include "constants.h"
 #include "entity_ref.h"
+#include "widgets/WeatherWidget.h"
 #include "widgets/Widget.h"
 #include <cstddef>
 
@@ -33,3 +34,4 @@ struct ButtonConfig {
 
 void screen_add_slider(SliderConfig config, Screen* screen);
 void screen_add_button(ButtonConfig config, Screen* screen);
+void screen_add_weather(WeatherWidgetConfig config, Screen* screen);

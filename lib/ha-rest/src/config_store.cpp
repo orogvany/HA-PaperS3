@@ -79,8 +79,19 @@ void ConfigStore::_loadFromNVS() {
     buf[len] = '\0';
     prefs.end();
 
-    _deserializeFromJson(buf, len);
+    if (!_deserializeFromJson(buf, len)) {
+        free(buf);
+        return;
+    }
     free(buf);
+
+    // Version check - wipe on mismatch
+    if (_config.config_version != CONFIG_VERSION) {
+        ESP_LOGW(TAG, "Config version mismatch (stored=%d, current=%d) - wiping",
+                 _config.config_version, CONFIG_VERSION);
+        resetToDefaults();
+        return;
+    }
 }
 
 bool ConfigStore::save() {
@@ -121,6 +132,7 @@ void ConfigStore::resetToDefaults() {
 bool ConfigStore::_serializeToJson(String& output) {
     JsonDocument doc;
 
+    doc["config_version"] = CONFIG_VERSION;
     doc["configured"] = _config.configured;
 
     // WiFi
@@ -166,6 +178,12 @@ bool ConfigStore::_serializeToJson(String& output) {
         d["pos_y"] = _config.ui_devices[i].pos_y;
         d["width"] = _config.ui_devices[i].width;
         d["height"] = _config.ui_devices[i].height;
+        if (_config.ui_devices[i].weather_source[0]) {
+            d["weather_source"] = _config.ui_devices[i].weather_source;
+            d["owm_api_key"] = _config.ui_devices[i].owm_api_key;
+            d["owm_location"] = _config.ui_devices[i].owm_location;
+            d["owm_units"] = _config.ui_devices[i].owm_units;
+        }
     }
 
     serializeJson(doc, output);
@@ -180,6 +198,7 @@ bool ConfigStore::_deserializeFromJson(const char* json, size_t len) {
         return false;
     }
 
+    _config.config_version = doc["config_version"] | 0;
     _config.configured = doc["configured"] | false;
 
     // WiFi
@@ -226,6 +245,10 @@ bool ConfigStore::_deserializeFromJson(const char* json, size_t len) {
         dev.pos_y = d["pos_y"] | 30;
         dev.width = d["width"] | 0;
         dev.height = d["height"] | 0;
+        strlcpy(dev.weather_source, d["weather_source"] | "", sizeof(dev.weather_source));
+        strlcpy(dev.owm_api_key, d["owm_api_key"] | "", sizeof(dev.owm_api_key));
+        strlcpy(dev.owm_location, d["owm_location"] | "", sizeof(dev.owm_location));
+        strlcpy(dev.owm_units, d["owm_units"] | "imperial", sizeof(dev.owm_units));
     }
 
     return true;

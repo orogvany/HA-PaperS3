@@ -3,6 +3,7 @@
 #include "config_store.h"
 #include "constants.h"
 #include "draw.h"
+#include "entity_value.h"
 #include "esp_log.h"
 #include "managers/power.h"
 #include "wake_lock.h"
@@ -111,7 +112,16 @@ static bool send_ha_command(HARestClient* client, Command* cmd) {
 static void poll_entity_states(HARestClient* client, EntityStore* store) {
     for (uint8_t i = 0; i < store->entity_count; i++) {
         HAEntityState ha_state = {};
-        if (client->getEntityState(store->entities[i].entity_id, &ha_state)) {
+        if (!client->getEntityState(store->entities[i].entity_id, &ha_state)) continue;
+
+        if (store->entities[i].current.type == EntityValueType::Weather) {
+            WeatherState ws = {};
+            ws.condition = weather_condition_from_string(ha_state.state);
+            ws.current_temp = (int16_t)ha_state.temperature;
+            ws.humidity = (uint8_t)ha_state.humidity;
+            ws.temp_unit = ha_state.temperature_unit;
+            store_update_weather(store, i, ws);
+        } else {
             uint8_t value = parse_ha_value(ha_state);
             store_update_value(store, i, value);
         }

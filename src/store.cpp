@@ -43,8 +43,8 @@ void store_set_hass_state(EntityStore* store, ConnState state) {
 void store_update_value(EntityStore* store, uint8_t entity_idx, uint8_t value) {
     xSemaphoreTake(store->mutex, portMAX_DELAY);
     HomeAssistantEntity& entity = store->entities[entity_idx];
-    uint8_t previous_value = entity.current_value;
-    entity.current_value = value;
+    uint8_t previous_value = entity.current.range;
+    entity.current.range = value;
     xSemaphoreGive(store->mutex);
 
     if (previous_value != value && store->ui_task) {
@@ -52,10 +52,22 @@ void store_update_value(EntityStore* store, uint8_t entity_idx, uint8_t value) {
     }
 }
 
+void store_update_weather(EntityStore* store, uint8_t entity_idx, const WeatherState& weather) {
+    xSemaphoreTake(store->mutex, portMAX_DELAY);
+    HomeAssistantEntity& entity = store->entities[entity_idx];
+    bool changed = memcmp(&entity.current.weather, &weather, sizeof(WeatherState)) != 0;
+    entity.current.weather = weather;
+    xSemaphoreGive(store->mutex);
+
+    if (changed && store->ui_task) {
+        xTaskNotifyGive(store->ui_task);
+    }
+}
+
 void store_send_command(EntityStore* store, uint8_t entity_idx, uint8_t value) {
     xSemaphoreTake(store->mutex, portMAX_DELAY);
     HomeAssistantEntity& entity = store->entities[entity_idx];
-    entity.current_value = value;
+    entity.current.range = value;
     entity.command_value = value;
     entity.command_pending = true;
     xSemaphoreGive(store->mutex);
@@ -120,7 +132,7 @@ void store_update_ui_state(EntityStore* store, const Screen* screen, UIState* ui
 
     for (uint8_t widget_idx = 0; widget_idx < screen->widget_count; widget_idx++) {
         uint8_t entity_id = screen->entity_ids[widget_idx];
-        ui_state->widget_values[widget_idx] = store->entities[entity_id].current_value;
+        ui_state->entity_values[widget_idx] = store->entities[entity_id].current;
     }
 
     ui_state->battery_percentage = store->battery.percentage;
@@ -200,10 +212,13 @@ EntityRef store_add_entity(EntityStore* store, EntityConfig entity) {
     }
 
     uint8_t entity_id = store->entity_count++;
-    store->entities[entity_id] = {
-        .entity_id = entity.entity_id,
-        .command_type = entity.command_type,
-    };
+    HomeAssistantEntity& e = store->entities[entity_id];
+    e.entity_id = entity.entity_id;
+    e.command_type = entity.command_type;
+    e.current.type = entity.value_type;
+    e.command_value = 0;
+    e.command_pending = false;
+    e.read_only = entity.read_only;
 
     return EntityRef{.index = entity_id};
 }
