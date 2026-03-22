@@ -9,6 +9,7 @@ void drawCenteredIconWithText(FASTEPD* epaper, const uint8_t* icon, const char* 
 
 void drawBatteryIndicator(FASTEPD* epaper, uint8_t percentage, bool charging);
 void drawGearIcon(FASTEPD* epaper);
+void drawStatusIcons(FASTEPD* epaper, bool wifi_connected, bool ha_connected);
 void drawSettingsMenu(FASTEPD* epaper);
 void drawWifiSetupScreen(FASTEPD* epaper, const char* ap_name);
 void drawConfigureScreen(FASTEPD* epaper, const char* device_ip);

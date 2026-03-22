@@ -27,6 +27,8 @@ struct UIState {
     bool battery_charging = false;
     uint8_t pin_digits_entered = 0;
     bool pin_wrong = false;
+    bool wifi_connected = false;
+    bool ha_connected = false;
 };
 
 // The touch task needs to know the current state of the UI.

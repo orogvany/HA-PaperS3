@@ -46,27 +46,28 @@ void ui_main_screen_full_draw(UIState* state, BitDepth depth, Screen* screen, FA
         drawBatteryIndicator(epaper, state->battery_percentage, state->battery_charging);
     }
     drawGearIcon(epaper);
+    drawStatusIcons(epaper, state->wifi_connected, state->ha_connected);
 }
 
 void ui_show_message(UiMode mode, FASTEPD* epaper) {
-    const uint8_t* icon = alert_circle;
+    const uint8_t* icon = ui_alert_circle;
     const char* const* text_lines = TEXT_GENERIC_ERROR;
 
     switch (mode) {
     case UiMode::Boot:
-        icon = home_assistant;
+        icon = ui_home_assistant;
         text_lines = TEXT_BOOT;
         break;
     case UiMode::WifiDisconnected:
-        icon = wifi_off;
+        icon = ui_alert_circle; // Dead code - error screens removed
         text_lines = TEXT_WIFI_DISCONNECTED;
         break;
     case UiMode::HassDisconnected:
-        icon = server_network_off;
+        icon = ui_alert_circle; // Dead code - error screens removed
         text_lines = TEXT_HASS_DISCONNECTED;
         break;
     case UiMode::HassInvalidKey:
-        icon = lock_alert_outline;
+        icon = ui_alert_circle; // Dead code - error screens removed
         text_lines = TEXT_HASS_INVALID_KEY;
         break;
     }

@@ -8,13 +8,13 @@ static const char* TAG = "widget_builder";
 
 // Map icon name string to compiled icon array
 static const uint8_t* icon_by_name(const char* name) {
-    if (strcmp(name, "fan") == 0) return fan;
-    if (strcmp(name, "fan_off") == 0) return fan_off;
-    if (strcmp(name, "lightbulb_outline") == 0) return lightbulb_outline;
-    if (strcmp(name, "lightbulb_off_outline") == 0) return lightbulb_off_outline;
-    if (strcmp(name, "robot_outline") == 0) return robot_outline;
-    if (strcmp(name, "robot_off_outline") == 0) return robot_off_outline;
-    return lightbulb_outline; // Fallback
+    if (strcmp(name, "fan") == 0) return btn_fan;
+    if (strcmp(name, "fan_off") == 0) return btn_fan_off;
+    if (strcmp(name, "lightbulb_outline") == 0) return btn_lightbulb_outline;
+    if (strcmp(name, "lightbulb_off_outline") == 0) return btn_lightbulb_off_outline;
+    if (strcmp(name, "robot_outline") == 0) return btn_robot_outline;
+    if (strcmp(name, "robot_off_outline") == 0) return btn_robot_off_outline;
+    return btn_lightbulb_outline; // Fallback
 }
 
 // Default icon mapping by domain

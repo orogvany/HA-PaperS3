@@ -93,10 +93,28 @@ void drawBatteryIndicator(FASTEPD* epaper, uint8_t percentage, bool charging) {
     }
 }
 
+constexpr uint16_t STATUS_ICON_SIZE = 24;
+constexpr uint16_t STATUS_ICON_Y = 16;
+constexpr uint16_t STATUS_ICON_X_START = 16;
+constexpr uint16_t STATUS_ICON_GAP = 6;
+
+void drawStatusIcons(FASTEPD* epaper, bool wifi_connected, bool ha_connected) {
+    uint16_t x = STATUS_ICON_X_START;
+
+    if (!wifi_connected) {
+        epaper->loadBMP(status_wifi_off, x, STATUS_ICON_Y, 0xf, BBEP_BLACK);
+        x += STATUS_ICON_SIZE + STATUS_ICON_GAP;
+    }
+    if (!ha_connected) {
+        epaper->loadBMP(status_ha_off, x, STATUS_ICON_Y, 0xf, BBEP_BLACK);
+        x += STATUS_ICON_SIZE + STATUS_ICON_GAP;
+    }
+}
+
 void drawGearIcon(FASTEPD* epaper) {
     uint16_t x = DISPLAY_WIDTH - GEAR_MARGIN - GEAR_ICON_SIZE;
     uint16_t y = DISPLAY_HEIGHT - GEAR_MARGIN - GEAR_ICON_SIZE;
-    epaper->loadBMP(cog_outline, x, y, 0xf, BBEP_BLACK);
+    epaper->loadBMP(chrome_cog_outline, x, y, 0xf, BBEP_BLACK);
 }
 
 bool isGearIconTouched(uint16_t touch_x, uint16_t touch_y) {
