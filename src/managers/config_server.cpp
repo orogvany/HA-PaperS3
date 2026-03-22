@@ -63,7 +63,7 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
     <label>HA URL</label>
     <input type="text" id="ha_url" placeholder="http://192.168.0.102:8123">
     <label>Access Token</label>
-    <input type="password" id="ha_token" placeholder="Long-lived access token">
+    <input type="text" id="ha_token" placeholder="Long-lived access token">
     <label>Poll Interval (seconds)</label>
     <input type="number" id="poll_interval" value="10" min="1" max="300">
     <label>WiFi Idle Disconnect (minutes)</label>
