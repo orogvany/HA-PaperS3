@@ -1,5 +1,6 @@
 #include "ha_rest_manager.h"
 #include "boards.h"
+#include "config_store.h"
 #include "constants.h"
 #include "draw.h"
 #include "esp_log.h"
@@ -172,10 +173,13 @@ void ha_rest_manager_task(void* arg) {
     Command command;
     bool wifi_is_off = false;
     uint32_t last_poll_ms = millis();
+    const uint32_t poll_interval = ctx->config_store
+        ? ctx->config_store->config().poll_interval_ms
+        : HA_REST_POLL_INTERVAL_MS;
 
     while (1) {
         // Wait for notification (command queued) or poll interval
-        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(HA_REST_POLL_INTERVAL_MS));
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(poll_interval));
 
         // Phase 3: Handle idle WiFi disconnect
         if (FEATURE_IDLE_WIFI_DISCONNECT) {
@@ -248,7 +252,7 @@ void ha_rest_manager_task(void* arg) {
 
         // Periodic state polling
         uint32_t now = millis();
-        if (now - last_poll_ms >= HA_REST_POLL_INTERVAL_MS) {
+        if (now - last_poll_ms >= poll_interval) {
             wake_lock_acquire();
             poll_entity_states(&client, store);
             wake_lock_release();

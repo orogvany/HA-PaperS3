@@ -1,5 +1,6 @@
 #include "boards.h"
 #include "config_remote.h"
+#include "config_store.h"
 #include "constants.h"
 #include "draw.h"
 #include "driver/gpio.h"
@@ -21,6 +22,7 @@
 #include <FastEPD.h>
 
 static Configuration config;
+static ConfigStore config_store;
 
 static FASTEPD epaper;
 static Screen screen;
@@ -134,12 +136,27 @@ void setup() {
     store_init(&store);
     store_set_last_touch(&store, millis()); // Start idle timer from boot
 
+    // Initialize config store — loads from NVS or uses defaults
+    config_store.begin();
+
+    // Seed defaults from hardcoded config (only applies if NVS is empty)
+    // This keeps backward compat during migration — long term, config_remote.cpp goes away
+    configure_remote(&config, &store, &screen);
+    config_store.seedDefaults(config.wifi_ssid, config.wifi_password,
+                              config.home_assistant_url, config.home_assistant_token);
+
+    // Use config store values for WiFi and HA (overrides hardcoded if NVS has saved config)
+    const AppConfig& app = config_store.config();
+    config.wifi_ssid = app.wifi_ssid;
+    config.wifi_password = app.wifi_password;
+    config.home_assistant_url = app.ha_url;
+    config.home_assistant_token = app.ha_token;
+
     // Read battery immediately so first screen draw has a real value
     if (FEATURE_BATTERY_INDICATOR && HAS_BATTERY_ADC) {
         pinMode(BATTERY_CHARGE_PIN, INPUT);
         uint16_t raw_mv = analogReadMilliVolts(BATTERY_ADC_PIN);
         uint16_t voltage_mv = (uint16_t)(raw_mv * BATTERY_ADC_DIVIDER_RATIO);
-        // Simple voltage-to-percentage (rough, battery task has full lookup table)
         uint8_t pct = voltage_mv >= 4200 ? 100 : voltage_mv <= 3300 ? 0 : (voltage_mv - 3300) * 100 / 900;
         bool charging = (digitalRead(BATTERY_CHARGE_PIN) == LOW);
         store_set_battery(&store, voltage_mv, pct, charging);
@@ -147,7 +164,6 @@ void setup() {
     }
 
     ui_state_init(&shared_ui_state);
-    configure_remote(&config, &store, &screen);
     initialize_slider_sprites();
 
     init_display(&epaper);
@@ -164,6 +180,7 @@ void setup() {
 
     // Connect to Home Assistant via REST API
     hass_task_args.config = &config;
+    hass_task_args.config_store = &config_store;
     hass_task_args.store = &store;
     hass_task_args.epaper = &epaper;
     xTaskCreate(ha_rest_manager_task, "ha_rest", 8192, &hass_task_args, 1, &store.home_assistant_task);
