@@ -5,6 +5,7 @@
 #include <FastEPD.h>
 #include <cstddef>
 #include <cstdint>
+#include <algorithm>
 #include <cstdio>
 
 void drawCenteredIconWithText(FASTEPD* epaper, const uint8_t* icon, const char* const* lines, uint8_t line_spacing,
@@ -47,67 +48,88 @@ constexpr uint16_t BATT_TIP_W = 3;
 constexpr uint16_t BATT_BORDER = 2;
 constexpr uint16_t BATT_MARGIN = 16;
 
-void drawBatteryIndicator(FASTEPD* epaper, uint8_t percentage, bool charging) {
+
+constexpr uint16_t STATUS_ICON_SIZE = 24;
+constexpr uint16_t STATUS_ICON_GAP = 6;
+
+void drawStatusBar(FASTEPD* epaper, bool wifi_connected, bool ha_connected,
+                   uint8_t battery_pct, bool battery_charging, bool show_battery) {
     char label[8];
-    snprintf(label, sizeof(label), "%d%%", percentage);
+    BB_RECT text_rect = {};
+    uint16_t batt_section_w = 0;
 
-    BB_RECT text_rect;
-    epaper->setFont(Montserrat_Regular_26);
-    epaper->setTextColor(BBEP_BLACK);
-    epaper->getStringBox(label, &text_rect);
+    if (show_battery) {
+        if (battery_charging) {
+            batt_section_w = BATT_ICON_W + BATT_TIP_W + 6 + 14;
+        } else {
+            snprintf(label, sizeof(label), "%d%%", battery_pct);
+            epaper->setFont(Montserrat_Regular_26);
+            epaper->setTextColor(BBEP_BLACK);
+            epaper->getStringBox(label, &text_rect);
+            batt_section_w = BATT_ICON_W + BATT_TIP_W + 6 + text_rect.w;
+        }
+    }
 
-    // Extra space for lightning bolt when charging
-    uint16_t bolt_w = charging ? 14 : 0;
-    uint16_t total_w = BATT_ICON_W + BATT_TIP_W + 6 + text_rect.w + bolt_w;
+    // Count status icons that need to be shown
+    uint8_t icon_count = 0;
+    if (!wifi_connected) icon_count++;
+    if (!ha_connected) icon_count++;
+
+    uint16_t status_section_w = 0;
+    if (icon_count > 0) {
+        status_section_w = icon_count * STATUS_ICON_SIZE + (icon_count - 1) * STATUS_ICON_GAP;
+        if (show_battery) {
+            status_section_w += STATUS_ICON_GAP * 2;
+        }
+    }
+
+    uint16_t total_w = status_section_w + batt_section_w;
     uint16_t x = DISPLAY_WIDTH - BATT_MARGIN - total_w;
     uint16_t y = BATT_MARGIN;
 
-    // Clear the area
-    epaper->fillRect(x - 4, y - 2, total_w + 8, std::max((int)BATT_ICON_H, text_rect.h) + 4, 0xf);
+    // Clear the entire status bar area
+    uint16_t clear_h = std::max({(int)STATUS_ICON_SIZE, (int)BATT_ICON_H, text_rect.h}) + 4;
+    epaper->fillRect(x - 4, y - 2, total_w + 8, clear_h, 0xf);
 
-    // Battery outline
-    epaper->drawRect(x, y, BATT_ICON_W, BATT_ICON_H, BBEP_BLACK);
-    epaper->fillRect(x + BATT_ICON_W, y + 3, BATT_TIP_W, BATT_ICON_H - 6, BBEP_BLACK);
-
-    // Fill level
-    uint16_t fill_w = (BATT_ICON_W - 2 * BATT_BORDER) * percentage / 100;
-    if (fill_w > 0) {
-        epaper->fillRect(x + BATT_BORDER, y + BATT_BORDER, fill_w, BATT_ICON_H - 2 * BATT_BORDER, BBEP_BLACK);
-    }
-
-    // Percentage text
-    uint16_t text_x = x + BATT_ICON_W + BATT_TIP_W + 6;
-    epaper->setCursor(text_x, y + (BATT_ICON_H + text_rect.h) / 2 - 2);
-    epaper->write(label);
-
-    // Lightning bolt when charging
-    if (charging) {
-        uint16_t bx = text_x + text_rect.w + 4; // Bolt x start
-        uint16_t by = y;                          // Bolt y start
-        // Draw a small lightning bolt shape (7px wide, 14px tall)
-        epaper->drawLine(bx + 5, by,     bx + 1, by + 6, BBEP_BLACK);
-        epaper->drawLine(bx + 6, by,     bx + 2, by + 6, BBEP_BLACK);
-        epaper->drawLine(bx + 1, by + 6, bx + 4, by + 6, BBEP_BLACK);
-        epaper->drawLine(bx + 4, by + 6, bx,     by + 13, BBEP_BLACK);
-        epaper->drawLine(bx + 5, by + 6, bx + 1, by + 13, BBEP_BLACK);
-    }
-}
-
-constexpr uint16_t STATUS_ICON_SIZE = 24;
-constexpr uint16_t STATUS_ICON_Y = 16;
-constexpr uint16_t STATUS_ICON_X_START = 16;
-constexpr uint16_t STATUS_ICON_GAP = 6;
-
-void drawStatusIcons(FASTEPD* epaper, bool wifi_connected, bool ha_connected) {
-    uint16_t x = STATUS_ICON_X_START;
-
+    // Draw status icons (leftmost), vertically centered on same baseline as battery
+    uint16_t icon_y = y;
     if (!wifi_connected) {
-        epaper->loadBMP(status_wifi_off, x, STATUS_ICON_Y, 0xf, BBEP_BLACK);
+        epaper->loadBMP(status_wifi_off, x, icon_y, 0xf, BBEP_BLACK);
         x += STATUS_ICON_SIZE + STATUS_ICON_GAP;
     }
     if (!ha_connected) {
-        epaper->loadBMP(status_ha_off, x, STATUS_ICON_Y, 0xf, BBEP_BLACK);
+        epaper->loadBMP(status_ha_off, x, icon_y, 0xf, BBEP_BLACK);
         x += STATUS_ICON_SIZE + STATUS_ICON_GAP;
+    }
+    if (icon_count > 0 && show_battery) {
+        x += STATUS_ICON_GAP;
+    }
+
+    // Draw battery (rightmost)
+    if (show_battery) {
+        epaper->drawRect(x, y, BATT_ICON_W, BATT_ICON_H, BBEP_BLACK);
+        epaper->fillRect(x + BATT_ICON_W, y + 3, BATT_TIP_W, BATT_ICON_H - 6, BBEP_BLACK);
+
+        uint16_t fill_w = (BATT_ICON_W - 2 * BATT_BORDER) * battery_pct / 100;
+        if (fill_w > 0) {
+            epaper->fillRect(x + BATT_BORDER, y + BATT_BORDER, fill_w, BATT_ICON_H - 2 * BATT_BORDER, BBEP_BLACK);
+        }
+
+        uint16_t after_icon_x = x + BATT_ICON_W + BATT_TIP_W + 6;
+        if (battery_charging) {
+            uint16_t bx = after_icon_x;
+            uint16_t by = y;
+            epaper->drawLine(bx + 5, by,     bx + 1, by + 6, BBEP_BLACK);
+            epaper->drawLine(bx + 6, by,     bx + 2, by + 6, BBEP_BLACK);
+            epaper->drawLine(bx + 1, by + 6, bx + 4, by + 6, BBEP_BLACK);
+            epaper->drawLine(bx + 4, by + 6, bx,     by + 13, BBEP_BLACK);
+            epaper->drawLine(bx + 5, by + 6, bx + 1, by + 13, BBEP_BLACK);
+        } else {
+            epaper->setFont(Montserrat_Regular_26);
+            epaper->setTextColor(BBEP_BLACK);
+            epaper->setCursor(after_icon_x, y + (BATT_ICON_H + text_rect.h) / 2 - 2);
+            epaper->write(label);
+        }
     }
 }
 

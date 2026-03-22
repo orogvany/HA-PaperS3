@@ -127,8 +127,8 @@ void store_update_ui_state(EntityStore* store, const Screen* screen, UIState* ui
     ui_state->battery_charging = store->battery.charging;
     ui_state->pin_digits_entered = store->pin_digits_entered;
     ui_state->pin_wrong = store->pin_wrong;
-    ui_state->wifi_connected = (store->wifi == ConnState::Up);
-    ui_state->ha_connected = (store->home_assistant == ConnState::Up);
+    ui_state->wifi_connected = (store->wifi != ConnState::ConnectionError);
+    ui_state->ha_connected = (store->home_assistant != ConnState::ConnectionError);
 
     xSemaphoreGive(store->mutex);
 }

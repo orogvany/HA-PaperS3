@@ -42,11 +42,10 @@ void ui_main_screen_full_draw(UIState* state, BitDepth depth, Screen* screen, FA
     for (uint8_t widget_idx = 0; widget_idx < screen->widget_count; widget_idx++) {
         screen->widgets[widget_idx]->fullDraw(epaper, depth, state->widget_values[widget_idx]);
     }
-    if (FEATURE_BATTERY_INDICATOR && HAS_BATTERY_ADC) {
-        drawBatteryIndicator(epaper, state->battery_percentage, state->battery_charging);
-    }
+    drawStatusBar(epaper, state->wifi_connected, state->ha_connected,
+                  state->battery_percentage, state->battery_charging,
+                  FEATURE_BATTERY_INDICATOR && HAS_BATTERY_ADC);
     drawGearIcon(epaper);
-    drawStatusIcons(epaper, state->wifi_connected, state->ha_connected);
 }
 
 void ui_show_message(UiMode mode, FASTEPD* epaper) {
@@ -139,9 +138,6 @@ void ui_task(void* arg) {
                     ctx->epaper->fullUpdate(CLEAR_SLOW, false);
                 } else {
                     ui_show_message(current_state.mode, ctx->epaper);
-                    if (FEATURE_BATTERY_INDICATOR && HAS_BATTERY_ADC) {
-                        drawBatteryIndicator(ctx->epaper, current_state.battery_percentage, current_state.battery_charging);
-                    }
                     ctx->epaper->fullUpdate(CLEAR_SLOW, false);
                 }
                 display_is_dirty = false;
@@ -180,9 +176,13 @@ void ui_task(void* arg) {
                     }
                 }
 
-                if (HAS_BATTERY_ADC && (current_state.battery_percentage != displayed_state.battery_percentage ||
-                                        current_state.battery_charging != displayed_state.battery_charging)) {
-                    drawBatteryIndicator(ctx->epaper, current_state.battery_percentage, current_state.battery_charging);
+                if (current_state.battery_percentage != displayed_state.battery_percentage ||
+                    current_state.battery_charging != displayed_state.battery_charging ||
+                    current_state.wifi_connected != displayed_state.wifi_connected ||
+                    current_state.ha_connected != displayed_state.ha_connected) {
+                    drawStatusBar(ctx->epaper, current_state.wifi_connected, current_state.ha_connected,
+                                  current_state.battery_percentage, current_state.battery_charging,
+                                  FEATURE_BATTERY_INDICATOR && HAS_BATTERY_ADC);
                     display_is_dirty = true;
                 }
                 if (damage_accum.w > 0 || damage_accum.h > 0) {
