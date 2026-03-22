@@ -2,6 +2,7 @@
 #include "boards.h"
 #include "constants.h"
 #include "draw.h"
+#include "managers/wifi_portal.h"
 #include "wake_lock.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -86,6 +87,7 @@ void touch_task(void* arg) {
                 }
                 if (item == 0) {
                     ESP_LOGI(TAG, "Settings: Configure WiFi");
+                    wifi_portal_start("HA-Remote");
                     store_set_ui_mode_override(store, UiMode::WifiSetup);
                 } else if (item == 1) {
                     ESP_LOGI(TAG, "Settings: Configure HA");
@@ -99,13 +101,26 @@ void touch_task(void* arg) {
                 continue;
             }
 
-            if ((ui_state->mode == UiMode::WifiSetup || ui_state->mode == UiMode::HaSetup) && !touching) {
+            if (ui_state->mode == UiMode::WifiSetup && !touching) {
                 touching = true;
-                if (ti.x[0] < 100 && ti.y[0] < 80) {
+                if (ti.x[0] < 200 && ti.y[0] < 80) {
                     if (BUZZER_FEEDBACK_ENABLED && BUZZER_PIN) {
                         tone(BUZZER_PIN, BUZZER_FREQ_HZ, BUZZER_DURATION_MS);
                     }
-                    ESP_LOGI(TAG, "Setup: Back to settings");
+                    ESP_LOGI(TAG, "WiFi Setup: Back to settings");
+                    wifi_portal_stop();
+                    store_set_ui_mode_override(store, UiMode::SettingsMenu);
+                }
+                continue;
+            }
+
+            if (ui_state->mode == UiMode::HaSetup && !touching) {
+                touching = true;
+                if (ti.x[0] < 200 && ti.y[0] < 80) {
+                    if (BUZZER_FEEDBACK_ENABLED && BUZZER_PIN) {
+                        tone(BUZZER_PIN, BUZZER_FREQ_HZ, BUZZER_DURATION_MS);
+                    }
+                    ESP_LOGI(TAG, "HA Setup: Back to settings");
                     store_set_ui_mode_override(store, UiMode::SettingsMenu);
                 }
                 continue;
@@ -165,8 +180,15 @@ void touch_task(void* arg) {
                 }
                 vTaskDelay(pdMS_TO_TICKS(TOUCH_POLL_ACTIVE_MS));
             } else {
-                // Phase 2: block on semaphore (CPU can sleep), otherwise poll
-                if (FEATURE_LIGHT_SLEEP && touch_semaphore) {
+                // Poll WiFi portal if active (needs frequent processing)
+                if (wifi_portal_is_active()) {
+                    if (wifi_portal_poll()) {
+                        // WiFi configured successfully — save and return to main
+                        ESP_LOGI(TAG, "WiFi portal: connected, returning to main");
+                        store_set_ui_mode_override(store, UiMode::Blank);
+                    }
+                    vTaskDelay(pdMS_TO_TICKS(100)); // WiFiManager needs frequent polling
+                } else if (FEATURE_LIGHT_SLEEP && touch_semaphore) {
                     xSemaphoreTake(touch_semaphore, portMAX_DELAY);
                 } else {
                     vTaskDelay(pdMS_TO_TICKS(TOUCH_POLL_IDLE_MS));
