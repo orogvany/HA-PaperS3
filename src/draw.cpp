@@ -48,18 +48,16 @@ constexpr uint16_t BATT_MARGIN = 10;
 
 void drawBatteryIndicator(FASTEPD* epaper, uint8_t percentage, bool charging) {
     char label[8];
-    if (charging) {
-        snprintf(label, sizeof(label), "%d%%+", percentage);
-    } else {
-        snprintf(label, sizeof(label), "%d%%", percentage);
-    }
+    snprintf(label, sizeof(label), "%d%%", percentage);
 
     BB_RECT text_rect;
     epaper->setFont(Montserrat_Regular_26);
     epaper->setTextColor(BBEP_BLACK);
     epaper->getStringBox(label, &text_rect);
 
-    uint16_t total_w = BATT_ICON_W + BATT_TIP_W + 6 + text_rect.w;
+    // Extra space for lightning bolt when charging
+    uint16_t bolt_w = charging ? 14 : 0;
+    uint16_t total_w = BATT_ICON_W + BATT_TIP_W + 6 + text_rect.w + bolt_w;
     uint16_t x = DISPLAY_WIDTH - BATT_MARGIN - total_w;
     uint16_t y = BATT_MARGIN;
 
@@ -80,6 +78,18 @@ void drawBatteryIndicator(FASTEPD* epaper, uint8_t percentage, bool charging) {
     uint16_t text_x = x + BATT_ICON_W + BATT_TIP_W + 6;
     epaper->setCursor(text_x, y + (BATT_ICON_H + text_rect.h) / 2 - 2);
     epaper->write(label);
+
+    // Lightning bolt when charging
+    if (charging) {
+        uint16_t bx = text_x + text_rect.w + 4; // Bolt x start
+        uint16_t by = y;                          // Bolt y start
+        // Draw a small lightning bolt shape (7px wide, 14px tall)
+        epaper->drawLine(bx + 5, by,     bx + 1, by + 6, BBEP_BLACK);
+        epaper->drawLine(bx + 6, by,     bx + 2, by + 6, BBEP_BLACK);
+        epaper->drawLine(bx + 1, by + 6, bx + 4, by + 6, BBEP_BLACK);
+        epaper->drawLine(bx + 4, by + 6, bx,     by + 13, BBEP_BLACK);
+        epaper->drawLine(bx + 5, by + 6, bx + 1, by + 13, BBEP_BLACK);
+    }
 }
 
 void drawIdleScreen(FASTEPD* epaper, int16_t offset_x, int16_t offset_y) {
