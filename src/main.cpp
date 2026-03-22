@@ -66,6 +66,15 @@ void setup() {
     Serial.begin(115200);
     while (!Serial && millis() < 3000) { delay(10); } // Wait for USB CDC, max 3 seconds
     Serial.println("=== M5Paper S3 HA Remote - Booting ===");
+
+    // Log reset reason so we can diagnose crashes on battery (no serial)
+    const char* reset_reasons[] = {
+        "UNKNOWN", "POWERON", "EXT", "SW", "PANIC", "INT_WDT",
+        "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO"
+    };
+    int reason = (int)esp_reset_reason();
+    Serial.printf("Reset reason: %s (%d)\n",
+        reason < 11 ? reset_reasons[reason] : "OTHER", reason);
     Serial.flush();
 
     // Only init I2C early if we need it for BMI270 or Phase 4 RTC check

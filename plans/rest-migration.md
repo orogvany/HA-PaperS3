@@ -162,15 +162,24 @@ Filter client-side for our configured entities. One call gets everything.
 
 **Result**: Noticeably faster boot and command response vs WebSocket. No more 12s latency.
 
-### Phase R2: Sleep Integration — IN PROGRESS
+### Phase R2: Sleep Integration — MOSTLY COMPLETE
 
 Goal: With REST, WiFi is only needed during poll/command windows. Between them, disconnect WiFi and sleep.
 
-- Connect WiFi → poll states → process touch → send commands → disconnect WiFi → sleep
-- Wake on touch → connect WiFi → send command → poll → disconnect → sleep
-- Wake on timer (N seconds) → connect WiFi → poll states → disconnect → sleep
-- No persistent connection needed — perfect for light sleep
-- Key difference from WebSocket: no connection state to maintain through sleep
+- ✅ All power features re-enabled and working with REST:
+  - WiFi modem sleep, light sleep, idle WiFi disconnect, PMS150G shutdown, BMI270 suspend
+- ✅ Wake locks protect all HTTP operations (REST calls, state polling)
+- ✅ Wake lock bridge: store_send_command() holds lock until HA task processes command
+  (prevents CPU sleeping between touch and command send)
+- ✅ Light sleep idle hook with guards: 60s boot delay, USB detection, 100ms min wake, single core
+- ✅ No persistent connection to maintain — REST is stateless, perfect for sleep
+- ✅ WiFi reconnect after idle disconnect falls through to command processing
+  (no leaked wake locks)
+- ⚠️ Testing in progress — verifying touch responsiveness after idle periods
+- ⚠️ Light sleep + WiFi first-entry disconnect seen once previously (60s delay may fix)
+
+Key improvement over WebSocket: no 12-second latency, no connection state machine,
+no fighting between persistent connection and sleep cycles.
 
 ### Phase R3: Action Abstraction — NOT STARTED
 
