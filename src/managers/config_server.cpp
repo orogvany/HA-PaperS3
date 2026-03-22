@@ -1,5 +1,6 @@
 #include "config_server.h"
 #include "esp_log.h"
+#include "generated/icon_manifest.h"
 #include <HTTPClient.h>
 #include <WebServer.h>
 #include <WiFi.h>
@@ -49,7 +50,16 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
         .dev-controls select { width: auto; padding: 4px; font-size: 13px; }
         .dev-vis { cursor: pointer; font-size: 1.1em; background: none; border: none; padding: 4px; }
         .dev-remove { cursor: pointer; font-size: 1em; background: none; border: none; padding: 4px; color: #e53935; }
+        .dev-icon { width: 32px; height: 32px; flex-shrink: 0; cursor: pointer; border-radius: 4px; padding: 2px; }
+        .dev-icon:hover { background: #e3f2fd; }
         .hidden-dev { opacity: 0.45; }
+        .icon-popover { display:none; position:fixed; z-index:100; background:#fff; border:1px solid #ccc; border-radius:8px; padding:8px; max-width:280px; max-height:240px; overflow-y:auto; box-shadow:0 4px 16px rgba(0,0,0,0.15); }
+        .icon-popover.open { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; }
+        .icon-opt { display:flex; flex-direction:column; align-items:center; padding:6px 4px; border-radius:4px; cursor:pointer; border:1px solid transparent; }
+        .icon-opt:hover { background:#e3f2fd; }
+        .icon-opt.selected { border-color:#2196F3; background:#e3f2fd; }
+        .icon-opt img { width:32px; height:32px; }
+        .icon-opt span { font-size:0.6em; color:#888; margin-top:2px; text-align:center; line-height:1.1; }
         .discover-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.9em; }
         .discover-table th { text-align: left; padding: 6px; border-bottom: 2px solid #ddd; }
         .discover-table td { padding: 6px; border-bottom: 1px solid #eee; }
@@ -77,13 +87,54 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
     <button class="btn btn-sm btn-outline" onclick="saveDevices()">Save Device Config</button>
     <div id="device-status"></div>
 
+    <div class="icon-popover" id="icon-popover"></div>
+
     <h2>Discover HA Devices</h2>
     <button class="btn btn-sm" onclick="discoverDevices()">Scan Home Assistant</button>
     <div id="discover-list"></div>
 
     <script>
     let activeDevices = [];
+    let icons = [];
     let dragIdx = null;
+    let popoverTarget = null;
+    const popover = document.getElementById('icon-popover');
+
+    // Load icons
+    fetch('/api/icons').then(r=>r.json()).then(data => { icons = data; }).catch(()=>{});
+
+    // Close icon popover on outside click
+    document.addEventListener('click', e => {
+        if (!popover.contains(e.target) && !e.target.classList.contains('dev-icon')) {
+            popover.className = 'icon-popover';
+        }
+    });
+
+    function iconDataFor(id) { return icons.find(i => i.id === id) || icons[0] || null; }
+
+    function openIconPicker(idx, imgEl) {
+        popoverTarget = idx;
+        popover.innerHTML = '';
+        icons.forEach(ico => {
+            const opt = document.createElement('div');
+            opt.className = 'icon-opt' + (activeDevices[idx].icon_on === ico.id ? ' selected' : '');
+            opt.innerHTML = '<img src="' + ico.data + '"><span>' + ico.title + '</span>';
+            opt.addEventListener('click', () => {
+                activeDevices[idx].icon_on = ico.id;
+                // Auto-set off icon (try _off variant)
+                const offId = ico.id.replace(/_outline$/, '_off_outline').replace(/^([^_]+)$/, '$1_off');
+                const offIco = icons.find(i => i.id === offId);
+                activeDevices[idx].icon_off = offIco ? offId : ico.id;
+                popover.className = 'icon-popover';
+                renderActive();
+            });
+            popover.appendChild(opt);
+        });
+        const rect = imgEl.getBoundingClientRect();
+        popover.style.top = Math.min(rect.bottom + 4, window.innerHeight - 250) + 'px';
+        popover.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 290)) + 'px';
+        popover.className = 'icon-popover open';
+    }
 
     // Load config
     fetch('/api/config').then(r=>r.json()).then(cfg => {
@@ -132,8 +183,10 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
             li.className = 'dev-row';
             li.draggable = true;
             li.dataset.idx = i;
+            const ico = iconDataFor(d.icon_on || 'lightbulb_outline');
             li.innerHTML = `
                 <span class="dev-handle">&#8801;</span>
+                <img class="dev-icon" src="${ico ? ico.data : ''}" alt="${d.icon_on||''}" title="Change icon" data-idx="${i}">
                 <div class="dev-info">
                     <div class="dev-name"><input type="text" value="${esc(d.label)}" onchange="activeDevices[${i}].label=this.value" style="border:none;padding:2px 4px;width:90%"></div>
                     <div class="dev-meta">${esc(d.entity_id)}</div>
@@ -146,6 +199,7 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
                     <button class="dev-remove" onclick="activeDevices.splice(${i},1);renderActive()" title="Remove">&#10005;</button>
                 </div>
             `;
+            li.querySelector('.dev-icon').addEventListener('click', function(e) { e.stopPropagation(); openIconPicker(i, this); });
             // Drag events
             li.addEventListener('dragstart', e => { dragIdx = i; li.classList.add('dragging'); });
             li.addEventListener('dragend', e => { dragIdx = null; li.classList.remove('dragging'); });
@@ -204,7 +258,7 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
     function addDevice(entityId, name, widgetType) {
         if (activeDevices.length >= 8) { alert('Max 8 devices'); return; }
         if (activeDevices.find(d => d.entity_id === entityId)) return;
-        activeDevices.push({ entity_id: entityId, label: name, widget_type: widgetType, sort_order: activeDevices.length });
+        activeDevices.push({ entity_id: entityId, label: name, widget_type: widgetType, icon_on: 'lightbulb_outline', icon_off: 'lightbulb_off_outline', sort_order: activeDevices.length });
         renderActive();
         discoverDevices(); // Re-render to show "Added"
     }
@@ -358,6 +412,8 @@ static void handle_ha_get_devices() {
         d["entity_id"] = cfg.ui_devices[i].entity_id;
         d["label"] = cfg.ui_devices[i].label;
         d["widget_type"] = cfg.ui_devices[i].widget_type;
+        d["icon_on"] = cfg.ui_devices[i].icon_on;
+        d["icon_off"] = cfg.ui_devices[i].icon_off;
         d["sort_order"] = cfg.ui_devices[i].sort_order;
     }
 
@@ -390,6 +446,8 @@ static void handle_ha_post_devices() {
         strlcpy(dev.entity_id, d["entity_id"] | "", sizeof(dev.entity_id));
         strlcpy(dev.label, d["label"] | "", sizeof(dev.label));
         strlcpy(dev.widget_type, d["widget_type"] | "button", sizeof(dev.widget_type));
+        strlcpy(dev.icon_on, d["icon_on"] | "lightbulb_outline", sizeof(dev.icon_on));
+        strlcpy(dev.icon_off, d["icon_off"] | "lightbulb_off_outline", sizeof(dev.icon_off));
         dev.sort_order = d["sort_order"] | cfg.ui_device_count;
         cfg.ui_device_count++;
     }
@@ -412,6 +470,15 @@ void config_server_start(ConfigStore* config_store) {
     server->on("/api/ha/discover", HTTP_GET, handle_ha_discover);
     server->on("/api/ha/devices", HTTP_GET, handle_ha_get_devices);
     server->on("/api/ha/devices", HTTP_POST, handle_ha_post_devices);
+    server->on("/api/icons", HTTP_GET, []() {
+        // Serve icon manifest from PROGMEM
+        String json;
+        json.reserve(strlen_P(ICON_MANIFEST_JSON));
+        const char* p = ICON_MANIFEST_JSON;
+        char c;
+        while ((c = pgm_read_byte(p++))) json += c;
+        server->send(200, "application/json", json);
+    });
     server->begin();
 
     ESP_LOGI(TAG, "Config server started on http://%s", WiFi.localIP().toString().c_str());
