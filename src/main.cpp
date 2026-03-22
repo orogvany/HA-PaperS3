@@ -10,7 +10,7 @@
 #include "wake_lock.h"
 #include "managers/battery.h"
 #include "managers/power.h"
-#include "managers/home_assistant.h"
+#include "managers/ha_rest_manager.h"
 #include "managers/touch.h"
 #include "managers/ui.h"
 #include "managers/wifi.h"
@@ -30,7 +30,7 @@ static SharedUIState shared_ui_state;
 
 static UITaskArgs ui_task_args;
 static TouchTaskArgs touch_task_args;
-static HomeAssistantTaskArgs hass_task_args;
+static HARestManagerArgs hass_task_args;
 static BatteryTaskArgs battery_task_args;
 
 static void init_display(FASTEPD* ep) {
@@ -153,11 +153,11 @@ void setup() {
     // Connect to wifi and launch watcher
     launch_wifi(&config, &store);
 
-    // Connect to home assistant
+    // Connect to Home Assistant via REST API
     hass_task_args.config = &config;
     hass_task_args.store = &store;
     hass_task_args.epaper = &epaper;
-    xTaskCreate(home_assistant_task, "home_assistant", 8192, &hass_task_args, 1, &store.home_assistant_task);
+    xTaskCreate(ha_rest_manager_task, "ha_rest", 8192, &hass_task_args, 1, &store.home_assistant_task);
 
     // Launch touch task
     touch_task_args.bbct = &bbct;

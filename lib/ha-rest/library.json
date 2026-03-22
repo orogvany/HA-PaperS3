@@ -1,0 +1,10 @@
+{
+    "name": "ha-rest",
+    "version": "0.1.0",
+    "description": "Home Assistant REST API client with generic device action interface",
+    "frameworks": "arduino",
+    "platforms": "espressif32",
+    "dependencies": {
+        "bblanchon/ArduinoJson": "^7.0.0"
+    }
+}

@@ -67,8 +67,10 @@ constexpr uint8_t TOUCH_AREA_MARGIN = 15;                    // Touch hit area e
 constexpr uint32_t DISPLAY_FULL_REDRAW_TIMEOUT_MS = 30000;   // Full refresh to clear ghosting
 
 // ============================================================================
-// HOME ASSISTANT CONFIGURATION
+// HOME ASSISTANT REST API CONFIGURATION
 // ============================================================================
+constexpr uint32_t HA_REST_POLL_INTERVAL_MS = 10000;          // Poll HA for state changes (10 seconds)
+
 constexpr uint16_t HASS_MAX_JSON_BUFFER = 1024 * 20;         // 20KB buffer for HA WebSocket messages
 constexpr uint32_t HASS_RECONNECT_DELAY_MS = 10000;          // WebSocket reconnect interval
 constexpr uint32_t HASS_TASK_SEND_DELAY_MS = 500;            // Delay between commands (prevents Zigbee flooding)
