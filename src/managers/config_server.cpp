@@ -10,176 +10,206 @@ static WebServer* server = nullptr;
 static ConfigStore* store = nullptr;
 
 // Embedded HTML page - served at /
+// NOTE: This is a large string literal. If it gets too big for flash,
+// move to SPIFFS and serve from filesystem instead.
 static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>HA Remote Config</title>
     <style>
-        body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
-        h1 { color: #333; }
-        h2 { color: #555; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 8px; }
-        label { display: block; margin-top: 12px; font-weight: bold; color: #444; }
-        input, select { width: 100%; padding: 10px; margin-top: 4px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
-        button { background: #2196F3; color: white; border: none; padding: 14px 28px; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 20px; width: 100%; }
-        button:hover { background: #1976D2; }
-        .status { padding: 10px; margin-top: 10px; border-radius: 6px; }
+        body { font-family: -apple-system, sans-serif; max-width: 640px; margin: 0 auto; padding: 16px; background: #f5f5f5; color: #333; }
+        h1 { margin-bottom: 4px; }
+        h2 { color: #555; margin-top: 28px; border-bottom: 1px solid #ddd; padding-bottom: 6px; }
+        label { display: block; margin-top: 10px; font-weight: bold; color: #444; font-size: 0.9em; }
+        input, select { width: 100%; padding: 8px; margin-top: 3px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; box-sizing: border-box; }
+        .btn { background: #2196F3; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-size: 15px; cursor: pointer; margin-top: 12px; }
+        .btn:hover { background: #1976D2; }
+        .btn-sm { padding: 6px 14px; font-size: 13px; margin-top: 8px; }
+        .btn-outline { background: none; border: 1px solid #2196F3; color: #2196F3; }
+        .btn-outline:hover { background: #e3f2fd; }
+        .status { padding: 8px; margin-top: 8px; border-radius: 6px; font-size: 0.9em; }
         .success { background: #c8e6c9; color: #2e7d32; }
         .error { background: #ffcdd2; color: #c62828; }
+        .dev-list { list-style: none; padding: 0; margin: 12px 0; }
+        .dev-row { display: flex; align-items: center; gap: 8px; padding: 10px; margin: 4px 0; background: #fff; border-radius: 8px; border: 1px solid #e0e0e0; cursor: grab; user-select: none; }
+        .dev-row.dragging { opacity: 0.3; }
+        .dev-row.drag-over { border-top: 3px solid #2196F3; }
+        .dev-handle { font-size: 1.3em; color: #aaa; flex-shrink: 0; }
+        .dev-info { flex: 1; min-width: 0; }
+        .dev-name { font-weight: bold; font-size: 0.95em; }
+        .dev-name input { font-weight: bold; padding: 4px 6px; }
+        .dev-meta { font-size: 0.8em; color: #888; margin-top: 2px; }
+        .dev-state { font-size: 0.8em; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+        .dev-state-on { background: #c8e6c9; color: #2e7d32; }
+        .dev-state-off { background: #e0e0e0; color: #666; }
+        .dev-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .dev-controls select { width: auto; padding: 4px; font-size: 13px; }
+        .dev-vis { cursor: pointer; font-size: 1.1em; background: none; border: none; padding: 4px; }
+        .dev-remove { cursor: pointer; font-size: 1em; background: none; border: none; padding: 4px; color: #e53935; }
+        .hidden-dev { opacity: 0.45; }
+        .discover-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.9em; }
+        .discover-table th { text-align: left; padding: 6px; border-bottom: 2px solid #ddd; }
+        .discover-table td { padding: 6px; border-bottom: 1px solid #eee; }
     </style>
 </head>
 <body>
-    <h1>HA Remote Configuration</h1>
+    <h1>HA Remote</h1>
+    <p style="color:#888;margin-top:0">Configuration</p>
 
-    <h2>Home Assistant</h2>
+    <h2>Home Assistant Connection</h2>
     <label>HA URL</label>
     <input type="text" id="ha_url" placeholder="http://192.168.0.102:8123">
     <label>Access Token</label>
-    <input type="text" id="ha_token" placeholder="Long-lived access token">
-
-    <h2>Polling</h2>
+    <input type="password" id="ha_token" placeholder="Long-lived access token">
     <label>Poll Interval (seconds)</label>
     <input type="number" id="poll_interval" value="10" min="1" max="300">
-
-    <h2>Power Management</h2>
     <label>WiFi Idle Disconnect (minutes)</label>
     <input type="number" id="idle_disconnect" value="5" min="1" max="60">
-
-    <button onclick="saveConfig()">Save Settings</button>
+    <button class="btn" onclick="saveConfig()">Save Connection Settings</button>
     <div id="config-status"></div>
 
-    <h2>Devices</h2>
-    <button onclick="discoverDevices()">Discover HA Devices</button>
-    <div id="device-list"></div>
-    <button onclick="saveDevices()" style="display:none" id="save-devices-btn">Save Device Selection</button>
+    <h2>My Devices</h2>
+    <p style="color:#888;font-size:0.85em">Drag to reorder. Edit names. Choose widget type. Max 8 devices on screen.</p>
+    <ul class="dev-list" id="active-devices"></ul>
+    <button class="btn btn-sm btn-outline" onclick="saveDevices()">Save Device Config</button>
     <div id="device-status"></div>
 
-    <h2>Active Devices</h2>
-    <div id="active-devices">Loading...</div>
+    <h2>Discover HA Devices</h2>
+    <button class="btn btn-sm" onclick="discoverDevices()">Scan Home Assistant</button>
+    <div id="discover-list"></div>
 
     <script>
-        let discoveredDevices = [];
-        let activeDevices = [];
+    let activeDevices = [];
+    let dragIdx = null;
 
-        fetch('/api/config')
-            .then(r => r.json())
-            .then(cfg => {
-                document.getElementById('ha_url').value = cfg.ha_url || '';
-                document.getElementById('ha_token').value = cfg.ha_token || '';
-                document.getElementById('poll_interval').value = (cfg.poll_interval_ms || 10000) / 1000;
-                document.getElementById('idle_disconnect').value = (cfg.idle_wifi_disconnect_ms || 300000) / 60000;
-            })
-            .catch(e => showStatus('config-status', 'Failed to load config', true));
+    // Load config
+    fetch('/api/config').then(r=>r.json()).then(cfg => {
+        document.getElementById('ha_url').value = cfg.ha_url || '';
+        document.getElementById('ha_token').value = cfg.ha_token || '';
+        document.getElementById('poll_interval').value = (cfg.poll_interval_ms || 10000) / 1000;
+        document.getElementById('idle_disconnect').value = (cfg.idle_wifi_disconnect_ms || 300000) / 60000;
+    }).catch(e => msg('config-status', 'Failed to load config', true));
 
-        fetch('/api/ha/devices')
-            .then(r => r.json())
-            .then(data => {
-                activeDevices = data.devices || [];
-                renderActiveDevices();
-            })
-            .catch(e => { document.getElementById('active-devices').textContent = 'None configured'; });
+    // Load active devices
+    fetch('/api/ha/devices').then(r=>r.json()).then(data => {
+        activeDevices = (data.devices || []).map((d,i) => ({...d, sort_order: d.sort_order || i}));
+        renderActive();
+    }).catch(e => { document.getElementById('active-devices').innerHTML = '<li style="color:#888">None configured</li>'; });
 
-        function saveConfig() {
-            const cfg = {
+    function msg(id, text, isErr) {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.className = 'status ' + (isErr ? 'error' : 'success');
+        setTimeout(() => { el.textContent = ''; el.className = ''; }, 4000);
+    }
+
+    function saveConfig() {
+        fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
                 ha_url: document.getElementById('ha_url').value,
                 ha_token: document.getElementById('ha_token').value,
                 poll_interval_ms: parseInt(document.getElementById('poll_interval').value) * 1000,
                 idle_wifi_disconnect_ms: parseInt(document.getElementById('idle_disconnect').value) * 60000
-            };
-            fetch('/api/config', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(cfg)
             })
-            .then(r => r.json())
-            .then(res => showStatus('config-status', res.message || 'Saved!', false))
-            .catch(e => showStatus('config-status', 'Save failed: ' + e, true));
-        }
+        }).then(r=>r.json()).then(r => msg('config-status', r.message||'Saved!', false))
+          .catch(e => msg('config-status', 'Save failed', true));
+    }
 
-        function discoverDevices() {
-            document.getElementById('device-list').innerHTML = '<p>Discovering...</p>';
-            fetch('/api/ha/discover')
-                .then(r => r.json())
-                .then(data => {
-                    discoveredDevices = data.devices || [];
-                    renderDiscoveredDevices();
-                    document.getElementById('save-devices-btn').style.display = 'block';
-                })
-                .catch(e => showStatus('device-status', 'Discovery failed: ' + e, true));
+    // --- Active devices with drag/drop, rename, widget type, remove ---
+    function renderActive() {
+        const ul = document.getElementById('active-devices');
+        ul.innerHTML = '';
+        if (!activeDevices.length) {
+            ul.innerHTML = '<li style="color:#888;padding:12px">No devices - use Discover below to add</li>';
+            return;
         }
+        activeDevices.sort((a,b) => a.sort_order - b.sort_order);
+        activeDevices.forEach((d, i) => {
+            const li = document.createElement('li');
+            li.className = 'dev-row';
+            li.draggable = true;
+            li.dataset.idx = i;
+            li.innerHTML = `
+                <span class="dev-handle">&#8801;</span>
+                <div class="dev-info">
+                    <div class="dev-name"><input type="text" value="${esc(d.label)}" onchange="activeDevices[${i}].label=this.value" style="border:none;padding:2px 4px;width:90%"></div>
+                    <div class="dev-meta">${esc(d.entity_id)}</div>
+                </div>
+                <div class="dev-controls">
+                    <select onchange="activeDevices[${i}].widget_type=this.value">
+                        <option value="slider"${d.widget_type==='slider'?' selected':''}>Slider</option>
+                        <option value="button"${d.widget_type==='button'?' selected':''}>Button</option>
+                    </select>
+                    <button class="dev-remove" onclick="activeDevices.splice(${i},1);renderActive()" title="Remove">&#10005;</button>
+                </div>
+            `;
+            // Drag events
+            li.addEventListener('dragstart', e => { dragIdx = i; li.classList.add('dragging'); });
+            li.addEventListener('dragend', e => { dragIdx = null; li.classList.remove('dragging'); });
+            li.addEventListener('dragover', e => { e.preventDefault(); li.classList.add('drag-over'); });
+            li.addEventListener('dragleave', e => { li.classList.remove('drag-over'); });
+            li.addEventListener('drop', e => {
+                e.preventDefault();
+                li.classList.remove('drag-over');
+                if (dragIdx !== null && dragIdx !== i) {
+                    const moved = activeDevices.splice(dragIdx, 1)[0];
+                    activeDevices.splice(i, 0, moved);
+                    activeDevices.forEach((d,j) => d.sort_order = j);
+                    renderActive();
+                }
+            });
+            ul.appendChild(li);
+        });
+    }
 
-        function renderDiscoveredDevices() {
-            const el = document.getElementById('device-list');
-            if (discoveredDevices.length === 0) {
-                el.innerHTML = '<p>No devices found</p>';
+    function saveDevices() {
+        activeDevices.forEach((d,i) => d.sort_order = i);
+        fetch('/api/ha/devices', { method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({devices: activeDevices})
+        }).then(r=>r.json()).then(r => msg('device-status', r.message||'Saved!', false))
+          .catch(e => msg('device-status', 'Save failed', true));
+    }
+
+    // --- Discovery ---
+    function discoverDevices() {
+        document.getElementById('discover-list').innerHTML = '<p>Scanning...</p>';
+        fetch('/api/ha/discover').then(r=>r.json()).then(data => {
+            const devices = data.devices || [];
+            if (!devices.length) {
+                document.getElementById('discover-list').innerHTML = '<p>No devices found</p>';
                 return;
             }
             const activeIds = activeDevices.map(d => d.entity_id);
-            let html = '<table style="width:100%;border-collapse:collapse">';
-            html += '<tr><th style="text-align:left">Add</th><th style="text-align:left">Name</th><th>Type</th><th>Widget</th><th>State</th></tr>';
-            discoveredDevices.forEach(d => {
-                const checked = activeIds.includes(d.entity_id) ? 'checked' : '';
-                const widgetType = ['light','fan','cover','input_number','media_player'].includes(d.domain) ? 'slider' : 'button';
-                html += '<tr style="border-bottom:1px solid #eee">';
-                html += '<td><input type="checkbox" data-id="' + d.entity_id + '" data-name="' + d.friendly_name + '" data-widget="' + widgetType + '" ' + checked + '></td>';
-                html += '<td>' + d.friendly_name + '</td>';
+            let html = '<table class="discover-table"><tr><th></th><th>Name</th><th>Domain</th><th>State</th></tr>';
+            devices.forEach(d => {
+                const added = activeIds.includes(d.entity_id);
+                const stateClass = (d.state === 'on' || d.state === 'playing' || d.state === 'open') ? 'dev-state-on' : 'dev-state-off';
+                const widgetGuess = ['light','fan','cover','input_number','media_player'].includes(d.domain) ? 'slider' : 'button';
+                html += '<tr>';
+                html += '<td>' + (added ? '<span style="color:#2e7d32">Added</span>' :
+                    '<button class="btn btn-sm btn-outline" onclick="addDevice(\'' + esc(d.entity_id) + '\',\'' + esc(d.friendly_name) + '\',\'' + widgetGuess + '\')">Add</button>') + '</td>';
+                html += '<td>' + esc(d.friendly_name) + '</td>';
                 html += '<td><small>' + d.domain + '</small></td>';
-                html += '<td><select data-widget-select="' + d.entity_id + '"><option value="slider"' + (widgetType==='slider'?' selected':'') + '>Slider</option><option value="button"' + (widgetType==='button'?' selected':'') + '>Button</option></select></td>';
-                html += '<td><small>' + d.state + '</small></td>';
+                html += '<td><span class="dev-state ' + stateClass + '">' + d.state + '</span></td>';
                 html += '</tr>';
             });
             html += '</table>';
-            el.innerHTML = html;
-        }
+            document.getElementById('discover-list').innerHTML = html;
+        }).catch(e => { document.getElementById('discover-list').innerHTML = '<p class="error">Discovery failed</p>'; });
+    }
 
-        function renderActiveDevices() {
-            const el = document.getElementById('active-devices');
-            if (activeDevices.length === 0) {
-                el.innerHTML = '<p>None configured - use Discover to add devices</p>';
-                return;
-            }
-            let html = '<ul style="list-style:none;padding:0">';
-            activeDevices.forEach(d => {
-                html += '<li style="padding:8px;border-bottom:1px solid #eee">' + d.label + ' (' + d.entity_id + ') - ' + d.widget_type + '</li>';
-            });
-            html += '</ul>';
-            el.innerHTML = html;
-        }
+    function addDevice(entityId, name, widgetType) {
+        if (activeDevices.length >= 8) { alert('Max 8 devices'); return; }
+        if (activeDevices.find(d => d.entity_id === entityId)) return;
+        activeDevices.push({ entity_id: entityId, label: name, widget_type: widgetType, sort_order: activeDevices.length });
+        renderActive();
+        discoverDevices(); // Re-render to show "Added"
+    }
 
-        function saveDevices() {
-            const checkboxes = document.querySelectorAll('#device-list input[type=checkbox]:checked');
-            const devices = [];
-            let order = 0;
-            checkboxes.forEach(cb => {
-                const id = cb.dataset.id;
-                const widgetSelect = document.querySelector('[data-widget-select="' + id + '"]');
-                devices.push({
-                    entity_id: id,
-                    label: cb.dataset.name,
-                    widget_type: widgetSelect ? widgetSelect.value : cb.dataset.widget,
-                    sort_order: order++
-                });
-            });
-            fetch('/api/ha/devices', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({devices})
-            })
-            .then(r => r.json())
-            .then(res => {
-                showStatus('device-status', res.message || 'Saved!', false);
-                activeDevices = devices;
-                renderActiveDevices();
-            })
-            .catch(e => showStatus('device-status', 'Save failed: ' + e, true));
-        }
-
-        function showStatus(elId, msg, isError) {
-            const el = document.getElementById(elId);
-            el.textContent = msg;
-            el.className = 'status ' + (isError ? 'error' : 'success');
-        }
+    function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
     </script>
 </body>
 </html>
