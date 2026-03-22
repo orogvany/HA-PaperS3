@@ -1,6 +1,7 @@
 #include "managers/touch.h"
 #include "boards.h"
 #include "constants.h"
+#include "draw.h"
 #include "wake_lock.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -73,8 +74,45 @@ void touch_task(void* arg) {
 
             ui_state_copy(ctx->state, &ui_state_version, ui_state);
 
-            // Only process widget touches when on the main screen
+            // Handle touches based on current screen mode
+            if (ui_state->mode == UiMode::SettingsMenu) {
+                int item = getSettingsMenuItemTouched(ti.x[0], ti.y[0]);
+                if (item == 0) {
+                    ESP_LOGI(TAG, "Settings: Configure WiFi");
+                    store_set_ui_mode_override(store, UiMode::WifiSetup);
+                } else if (item == 1) {
+                    ESP_LOGI(TAG, "Settings: Configure HA");
+                    store_set_ui_mode_override(store, UiMode::HaSetup);
+                } else if (item == 2) {
+                    ESP_LOGI(TAG, "Settings: About");
+                    // TODO: About screen
+                } else if (item == -1) {
+                    ESP_LOGI(TAG, "Settings: Back to main");
+                    store_set_ui_mode_override(store, UiMode::Blank); // Clear override
+                }
+                continue;
+            }
+
+            if (ui_state->mode == UiMode::WifiSetup || ui_state->mode == UiMode::HaSetup) {
+                // Back button — top-left area
+                if (ti.x[0] < 100 && ti.y[0] < 80) {
+                    ESP_LOGI(TAG, "Setup: Back to settings");
+                    store_set_ui_mode_override(store, UiMode::SettingsMenu);
+                }
+                continue;
+            }
+
             if (ui_state->mode != UiMode::MainScreen) {
+                continue;
+            }
+
+            // Check gear icon touch (main screen only)
+            if (!touching && isGearIconTouched(ti.x[0], ti.y[0])) {
+                ESP_LOGI(TAG, "Gear icon tapped — opening settings");
+                if (BUZZER_FEEDBACK_ENABLED && BUZZER_PIN) {
+                    tone(BUZZER_PIN, BUZZER_FREQ_HZ, BUZZER_DURATION_MS);
+                }
+                store_set_ui_mode_override(store, UiMode::SettingsMenu);
                 continue;
             }
 

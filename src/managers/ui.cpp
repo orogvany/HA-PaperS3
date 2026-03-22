@@ -98,7 +98,6 @@ void ui_task(void* arg) {
                 ctx->epaper->fillScreen(0xf);
 
                 if (current_state.mode == UiMode::MainScreen) {
-                    // Display the main screen in its full glory
                     ui_main_screen_full_draw(&current_state, BitDepth::BD_4BPP, ctx->screen, ctx->epaper);
                     ctx->epaper->fullUpdate(CLEAR_SLOW, false);
 
@@ -107,6 +106,16 @@ void ui_task(void* arg) {
                     ctx->epaper->fillScreen(BBEP_WHITE);
                     ui_main_screen_full_draw(&displayed_state, BitDepth::BD_1BPP, ctx->screen, ctx->epaper);
                     ctx->epaper->backupPlane();
+                } else if (current_state.mode == UiMode::SettingsMenu) {
+                    drawSettingsMenu(ctx->epaper);
+                    ctx->epaper->fullUpdate(CLEAR_SLOW, false);
+                } else if (current_state.mode == UiMode::WifiSetup) {
+                    drawWifiSetupScreen(ctx->epaper, "HA-Remote");
+                    ctx->epaper->fullUpdate(CLEAR_SLOW, false);
+                } else if (current_state.mode == UiMode::HaSetup) {
+                    // TODO: pass actual device IP
+                    drawHaSetupScreen(ctx->epaper, "192.168.x.x");
+                    ctx->epaper->fullUpdate(CLEAR_SLOW, false);
                 } else {
                     ui_show_message(current_state.mode, ctx->epaper);
                     if (FEATURE_BATTERY_INDICATOR && HAS_BATTERY_ADC) {

@@ -13,6 +13,9 @@ enum class UiMode : uint8_t {
     HassDisconnected,
     HassInvalidKey,
     MainScreen,
+    SettingsMenu,
+    WifiSetup,
+    HaSetup,
 };
 
 struct UIState {

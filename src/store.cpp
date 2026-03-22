@@ -107,8 +107,10 @@ void store_ack_pending_command(EntityStore* store, const Command* command) {
 void store_update_ui_state(EntityStore* store, const Screen* screen, UIState* ui_state) {
     xSemaphoreTake(store->mutex, portMAX_DELAY);
 
-    // Handle wifi and home assistant state
-    if (store->wifi == ConnState::Up && store->home_assistant == ConnState::Up) {
+    // Check for UI mode override (settings menu, setup screens, etc.)
+    if (store->ui_mode_override != UiMode::Blank) {
+        ui_state->mode = store->ui_mode_override;
+    } else if (store->wifi == ConnState::Up && store->home_assistant == ConnState::Up) {
         ui_state->mode = UiMode::MainScreen;
     } else if (store->wifi == ConnState::Initializing) {
         ui_state->mode = UiMode::Boot;
@@ -179,6 +181,16 @@ bool store_get_wifi_idle(EntityStore* store) {
     bool idle = store->wifi_idle_disconnected;
     xSemaphoreGive(store->mutex);
     return idle;
+}
+
+void store_set_ui_mode_override(EntityStore* store, UiMode mode) {
+    xSemaphoreTake(store->mutex, portMAX_DELAY);
+    store->ui_mode_override = mode;
+    xSemaphoreGive(store->mutex);
+
+    if (store->ui_task) {
+        xTaskNotifyGive(store->ui_task);
+    }
 }
 
 void store_flush_pending_commands(EntityStore* store) {

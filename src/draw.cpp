@@ -93,13 +93,122 @@ void drawBatteryIndicator(FASTEPD* epaper, uint8_t percentage, bool charging) {
     }
 }
 
-constexpr uint16_t GEAR_ICON_SIZE = 64;
-constexpr uint16_t GEAR_MARGIN = 16;
-
 void drawGearIcon(FASTEPD* epaper) {
     uint16_t x = DISPLAY_WIDTH - GEAR_MARGIN - GEAR_ICON_SIZE;
     uint16_t y = DISPLAY_HEIGHT - GEAR_MARGIN - GEAR_ICON_SIZE;
     epaper->loadBMP(cog_outline, x, y, 0xf, BBEP_BLACK);
+}
+
+bool isGearIconTouched(uint16_t touch_x, uint16_t touch_y) {
+    uint16_t x = DISPLAY_WIDTH - GEAR_MARGIN - GEAR_ICON_SIZE;
+    uint16_t y = DISPLAY_HEIGHT - GEAR_MARGIN - GEAR_ICON_SIZE;
+    // Generous touch area (icon + margin)
+    return touch_x >= (x - 10) && touch_x <= DISPLAY_WIDTH &&
+           touch_y >= (y - 10) && touch_y <= DISPLAY_HEIGHT;
+}
+
+// Settings menu items — returns 0-based index or -1 for back/none
+// 0 = Configure WiFi, 1 = Configure HA, 2 = About, -1 = Back
+int getSettingsMenuItemTouched(uint16_t touch_x, uint16_t touch_y) {
+    // Back button — top-left area
+    if (touch_x < 100 && touch_y < 80) return -1;
+
+    // Menu items
+    for (int i = 0; i < 3; i++) {
+        uint16_t item_y = SETTINGS_ITEM_Y_START + i * (SETTINGS_ITEM_HEIGHT + 10);
+        if (touch_y >= item_y && touch_y < item_y + SETTINGS_ITEM_HEIGHT &&
+            touch_x >= SETTINGS_ITEM_MARGIN && touch_x < DISPLAY_WIDTH - SETTINGS_ITEM_MARGIN) {
+            return i;
+        }
+    }
+    return -2; // Nothing hit
+}
+
+void drawSettingsMenu(FASTEPD* epaper) {
+    epaper->setFont(Montserrat_Regular_26);
+    epaper->setTextColor(BBEP_BLACK);
+
+    // Title
+    epaper->setCursor(SETTINGS_ITEM_MARGIN, 50);
+    epaper->write("< Back");
+
+    BB_RECT rect;
+    epaper->getStringBox("Settings", &rect);
+    epaper->setCursor((DISPLAY_WIDTH - rect.w) / 2, 50);
+    epaper->write("Settings");
+
+    // Menu items with borders
+    const char* items[] = {"Configure WiFi", "Configure Home Assistant", "About"};
+    for (int i = 0; i < 3; i++) {
+        uint16_t y = SETTINGS_ITEM_Y_START + i * (SETTINGS_ITEM_HEIGHT + 10);
+        // Draw rounded rectangle border
+        epaper->drawRect(SETTINGS_ITEM_MARGIN, y,
+                         DISPLAY_WIDTH - 2 * SETTINGS_ITEM_MARGIN,
+                         SETTINGS_ITEM_HEIGHT, BBEP_BLACK);
+        // Center text vertically in the item
+        epaper->getStringBox(items[i], &rect);
+        epaper->setCursor(SETTINGS_ITEM_MARGIN + 20,
+                          y + (SETTINGS_ITEM_HEIGHT + rect.h) / 2 - 4);
+        epaper->write(items[i]);
+    }
+}
+
+void drawWifiSetupScreen(FASTEPD* epaper, const char* ap_name) {
+    epaper->setFont(Montserrat_Regular_26);
+    epaper->setTextColor(BBEP_BLACK);
+
+    epaper->setCursor(SETTINGS_ITEM_MARGIN, 50);
+    epaper->write("< Back");
+
+    BB_RECT rect;
+    const char* line1 = "WiFi Setup";
+    epaper->getStringBox(line1, &rect);
+    epaper->setCursor((DISPLAY_WIDTH - rect.w) / 2, 150);
+    epaper->write(line1);
+
+    const char* line2 = "Connect to WiFi:";
+    epaper->getStringBox(line2, &rect);
+    epaper->setCursor((DISPLAY_WIDTH - rect.w) / 2, 250);
+    epaper->write(line2);
+
+    epaper->getStringBox(ap_name, &rect);
+    epaper->setCursor((DISPLAY_WIDTH - rect.w) / 2, 310);
+    epaper->write(ap_name);
+
+    const char* line3 = "Then open";
+    epaper->getStringBox(line3, &rect);
+    epaper->setCursor((DISPLAY_WIDTH - rect.w) / 2, 400);
+    epaper->write(line3);
+
+    const char* line4 = "192.168.4.1";
+    epaper->getStringBox(line4, &rect);
+    epaper->setCursor((DISPLAY_WIDTH - rect.w) / 2, 460);
+    epaper->write(line4);
+}
+
+void drawHaSetupScreen(FASTEPD* epaper, const char* device_ip) {
+    epaper->setFont(Montserrat_Regular_26);
+    epaper->setTextColor(BBEP_BLACK);
+
+    epaper->setCursor(SETTINGS_ITEM_MARGIN, 50);
+    epaper->write("< Back");
+
+    BB_RECT rect;
+    const char* line1 = "Home Assistant Setup";
+    epaper->getStringBox(line1, &rect);
+    epaper->setCursor((DISPLAY_WIDTH - rect.w) / 2, 150);
+    epaper->write(line1);
+
+    const char* line2 = "Open in browser:";
+    epaper->getStringBox(line2, &rect);
+    epaper->setCursor((DISPLAY_WIDTH - rect.w) / 2, 300);
+    epaper->write(line2);
+
+    char url[64];
+    snprintf(url, sizeof(url), "http://%s", device_ip);
+    epaper->getStringBox(url, &rect);
+    epaper->setCursor((DISPLAY_WIDTH - rect.w) / 2, 360);
+    epaper->write(url);
 }
 
 void drawIdleScreen(FASTEPD* epaper, int16_t offset_x, int16_t offset_y) {
