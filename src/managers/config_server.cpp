@@ -115,7 +115,7 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
     function openIconPicker(idx, imgEl) {
         popoverTarget = idx;
         popover.innerHTML = '';
-        icons.forEach(ico => {
+        icons.filter(ico => !ico.id.includes('_off')).forEach(ico => {
             const opt = document.createElement('div');
             opt.className = 'icon-opt' + (activeDevices[idx].icon_on === ico.id ? ' selected' : '');
             opt.innerHTML = '<img src="' + ico.data + '"><span>' + ico.title + '</span>';
