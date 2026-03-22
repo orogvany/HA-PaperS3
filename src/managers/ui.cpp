@@ -110,6 +110,12 @@ void ui_task(void* arg) {
                 } else if (current_state.mode == UiMode::PinEntry) {
                     drawPinEntryScreen(ctx->epaper, current_state.pin_digits_entered, current_state.pin_wrong);
                     ctx->epaper->fullUpdate(CLEAR_SLOW, false);
+
+                    // Preload 1BPP for fast partial updates (same pattern as main screen)
+                    ctx->epaper->setMode(BB_MODE_1BPP);
+                    ctx->epaper->fillScreen(BBEP_WHITE);
+                    drawPinEntryScreen(ctx->epaper, current_state.pin_digits_entered, current_state.pin_wrong);
+                    ctx->epaper->backupPlane();
                 } else if (current_state.mode == UiMode::SettingsMenu) {
                     drawSettingsMenu(ctx->epaper);
                     ctx->epaper->fullUpdate(CLEAR_SLOW, false);
@@ -138,6 +144,26 @@ void ui_task(void* arg) {
                     ctx->epaper->fullUpdate(CLEAR_SLOW, false);
                 }
                 display_is_dirty = false;
+            } else if (current_state.mode == UiMode::PinEntry &&
+                       (current_state.pin_digits_entered != displayed_state.pin_digits_entered ||
+                        current_state.pin_wrong != displayed_state.pin_wrong)) {
+                if (current_state.pin_wrong) {
+                    // Wrong PIN - full redraw with message
+                    ctx->epaper->setMode(BB_MODE_4BPP);
+                    ctx->epaper->fillScreen(0xf);
+                    drawPinEntryScreen(ctx->epaper, 0, true);
+                    ctx->epaper->fullUpdate(CLEAR_FAST, false);
+                    ctx->epaper->setMode(BB_MODE_1BPP);
+                    ctx->epaper->fillScreen(BBEP_WHITE);
+                    drawPinEntryScreen(ctx->epaper, 0, true);
+                    ctx->epaper->backupPlane();
+                } else {
+                    // Digit change - partial update (1BPP, same as widgets)
+                    ctx->epaper->setMode(BB_MODE_1BPP);
+                    drawPinEntryScreen(ctx->epaper, current_state.pin_digits_entered, false);
+                    ctx->epaper->partialUpdate(false, 0, DISPLAY_WIDTH);
+                    display_is_dirty = true;
+                }
             } else if (current_state.mode == UiMode::MainScreen) {
                 Rect damage_accum = {};
 

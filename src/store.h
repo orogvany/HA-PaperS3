@@ -61,6 +61,7 @@ struct EntityStore {
     uint32_t last_touch_ms = 0;
     bool wifi_idle_disconnected = false;
     UiMode ui_mode_override = UiMode::Blank; // Blank = no override, use normal logic
+    bool touch_ready = false;
     uint8_t pin_digits_entered = 0;
     bool pin_wrong = false;
 

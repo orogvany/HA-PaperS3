@@ -262,18 +262,22 @@ void drawAboutScreen(FASTEPD* epaper, const char* version, const char* wifi_ssid
 }
 
 // PIN pad layout constants
-constexpr uint16_t PIN_PAD_X = 120;
+constexpr uint16_t PIN_PAD_X = 80;
 constexpr uint16_t PIN_PAD_Y = 300;
-constexpr uint16_t PIN_BTN_W = 90;
-constexpr uint16_t PIN_BTN_H = 70;
+constexpr uint16_t PIN_BTN_W = 120;
+constexpr uint16_t PIN_BTN_H = 80;
 constexpr uint16_t PIN_BTN_GAP = 10;
-constexpr uint16_t PIN_DOT_Y = 200;
-constexpr uint16_t PIN_DOT_R = 15;
-constexpr uint16_t PIN_DOT_GAP = 30;
+constexpr uint16_t PIN_DOT_Y = 210;
+constexpr uint16_t PIN_DOT_R = 20;
+constexpr uint16_t PIN_DOT_GAP = 35;
 
 void drawPinEntryScreen(FASTEPD* epaper, int digits_entered, bool wrong_pin) {
     epaper->setFont(Montserrat_Regular_26);
     epaper->setTextColor(BBEP_BLACK);
+
+    // Back button
+    epaper->setCursor(SETTINGS_ITEM_MARGIN, 40);
+    epaper->write("< Back");
 
     // Title
     BB_RECT rect;

@@ -51,6 +51,8 @@ void touch_task(void* arg) {
     int type = bbct->sensorType();
     ESP_LOGI(TAG, "Sensor type = %d", type);
 
+    store->touch_ready = true;
+
     // Phase 2: interrupt-driven touch instead of polling
     if (FEATURE_LIGHT_SLEEP) {
         touch_semaphore = xSemaphoreCreateBinary();
@@ -81,6 +83,18 @@ void touch_task(void* arg) {
                 touching = true;
                 static char pin_buf[5] = {};
                 static int pin_len = 0;
+
+                // Back button
+                if (ti.x[0] < 200 && ti.y[0] < 80) {
+                    if (BUZZER_FEEDBACK_ENABLED && BUZZER_PIN) {
+                        tone(BUZZER_PIN, BUZZER_FREQ_HZ, BUZZER_DURATION_MS);
+                    }
+                    pin_len = 0;
+                    store->pin_digits_entered = 0;
+                    store->pin_wrong = false;
+                    store_set_ui_mode_override(store, UiMode::Blank);
+                    continue;
+                }
 
                 int key = getPinPadTouched(ti.x[0], ti.y[0]);
                 if (key >= 0 && key <= 9 && pin_len < 4) {

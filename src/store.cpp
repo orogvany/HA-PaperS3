@@ -112,10 +112,9 @@ void store_update_ui_state(EntityStore* store, const Screen* screen, UIState* ui
         ui_state->mode = store->ui_mode_override;
     } else if (store->wifi == ConnState::Initializing &&
                store->home_assistant == ConnState::Initializing) {
-        ui_state->mode = UiMode::Boot; // Only show boot screen on initial startup
+        ui_state->mode = UiMode::Boot;
     } else {
         // Always show main screen - gear icon lets user access settings
-        // Connection status will be shown via status icons (TODO)
         ui_state->mode = UiMode::MainScreen;
     }
 
