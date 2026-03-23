@@ -111,6 +111,7 @@ static bool send_ha_command(HARestClient* client, Command* cmd) {
 // Poll all configured entity states from HA
 static void poll_entity_states(HARestClient* client, EntityStore* store) {
     for (uint8_t i = 0; i < store->entity_count; i++) {
+        if (store->entities[i].source != EntitySource::HomeAssistant) continue;
         HAEntityState ha_state = {};
         if (!client->getEntityState(store->entities[i].entity_id, &ha_state)) continue;
 
@@ -251,7 +252,7 @@ void ha_rest_manager_task(void* arg) {
         // Wake lock was acquired by store_send_command() to bridge the gap
         // between touch releasing its lock and us processing the command
         bool had_commands = false;
-        while (store_get_pending_command(store, &command)) {
+        while (store_get_pending_command(store, &command, EntitySource::HomeAssistant)) {
             had_commands = true;
             wake_lock_acquire(); // Hold lock during HTTP call
             ESP_LOGI(TAG, "Sending command: %s = %d", command.entity_id, command.value);

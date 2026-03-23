@@ -13,7 +13,13 @@ static const char* TAG = "alexa";
 static AlexaAuth auth;
 static AlexaAPI api;
 
-static void parse_capability_state(const char* json_str, uint8_t entity_idx, EntityStore* store) {
+struct AlexaDeviceState {
+    bool power_on = false;
+    int brightness = -1;
+    bool power_set = false;
+};
+
+static void parse_capability_state(const char* json_str, AlexaDeviceState* state) {
     JsonDocument doc;
     if (deserializeJson(doc, json_str)) return;
 
@@ -24,13 +30,11 @@ static void parse_capability_state(const char* json_str, uint8_t entity_idx, Ent
     if (strcmp(ns, "Alexa.PowerController") == 0 && strcmp(name, "powerState") == 0) {
         const char* val = doc["value"];
         if (val) {
-            store_update_value(store, entity_idx, strcmp(val, "ON") == 0 ? 1 : 0);
+            state->power_on = (strcmp(val, "ON") == 0);
+            state->power_set = true;
         }
     } else if (strcmp(ns, "Alexa.BrightnessController") == 0 && strcmp(name, "brightness") == 0) {
-        int val = doc["value"] | -1;
-        if (val >= 0) {
-            store_update_value(store, entity_idx, (uint8_t)val);
-        }
+        state->brightness = doc["value"] | -1;
     }
 }
 
@@ -76,9 +80,21 @@ static void poll_alexa_states(EntityStore* store) {
         }
         if (entity_idx == 0xFF) continue;
 
+        AlexaDeviceState dev_state;
         JsonArray cap_states = ds["capabilityStates"];
-        for (const char* cap_json : cap_states) {
-            parse_capability_state(cap_json, entity_idx, store);
+        for (JsonVariant cs : cap_states) {
+            const char* cap_json = cs.as<const char*>();
+            if (cap_json) parse_capability_state(cap_json, &dev_state);
+        }
+
+        if (dev_state.power_set) {
+            if (!dev_state.power_on) {
+                store_update_value(store, entity_idx, 0);
+            } else if (dev_state.brightness >= 0) {
+                store_update_value(store, entity_idx, (uint8_t)dev_state.brightness);
+            } else {
+                store_update_value(store, entity_idx, 1);
+            }
         }
     }
 }
@@ -158,14 +174,7 @@ void alexa_manager_task(void* arg) {
     while (1) {
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(poll_interval));
 
-        while (store_get_pending_command(store, &command)) {
-            if (command.type != CommandType::AlexaSetPower &&
-                command.type != CommandType::AlexaSetBrightness) {
-                store_ack_pending_command(store, &command);
-                wake_lock_release();
-                continue;
-            }
-
+        while (store_get_pending_command(store, &command, EntitySource::Alexa)) {
             if (send_alexa_command(&command)) {
                 store_ack_pending_command(store, &command);
             }

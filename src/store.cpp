@@ -100,15 +100,16 @@ void store_send_command(EntityStore* store, uint8_t entity_idx, uint8_t value) {
     }
 }
 
-bool store_get_pending_command(EntityStore* store, Command* command) {
+bool store_get_pending_command(EntityStore* store, Command* command, EntitySource source) {
     xSemaphoreTake(store->mutex, portMAX_DELAY);
 
     for (uint8_t entity_idx = 0; entity_idx < store->entity_count; ++entity_idx) {
         HomeAssistantEntity& entity = store->entities[entity_idx];
-        if (entity.command_pending) {
+        if (entity.command_pending && entity.source == source) {
             command->entity_id = entity.entity_id;
             command->entity_idx = entity_idx;
             command->type = entity.command_type;
+            command->source = entity.source;
             command->value = entity.command_value;
             xSemaphoreGive(store->mutex);
             return true;

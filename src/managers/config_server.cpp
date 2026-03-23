@@ -388,7 +388,7 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
         if (activeDevices.find(d => d.entity_id === entityId)) return;
         activeDevices.push({ entity_id: entityId, label: name, widget_type: widgetType, source: 'alexa', icon_on: 'lightbulb_outline', icon_off: 'lightbulb_off_outline', sort_order: activeDevices.length });
         renderActive();
-        alexaDiscover();
+        alexaLoadCached();
     }
     </script>
 </body>
@@ -551,6 +551,7 @@ static void handle_ha_get_devices() {
         d["entity_id"] = cfg.ui_devices[i].entity_id;
         d["label"] = cfg.ui_devices[i].label;
         d["widget_type"] = cfg.ui_devices[i].widget_type;
+        d["source"] = cfg.ui_devices[i].source;
         d["icon_on"] = cfg.ui_devices[i].icon_on;
         d["icon_off"] = cfg.ui_devices[i].icon_off;
         d["sort_order"] = cfg.ui_devices[i].sort_order;
@@ -753,7 +754,7 @@ static void handle_alexa_discover() {
         d["friendly_name"] = friendly_name;
         d["type"] = has_brightness ? "light" : "switch";
         d["has_brightness"] = has_brightness;
-        d["reachable"] = true;
+        d["reachable"] = false;
     }
 
     // Poll state to get reachability

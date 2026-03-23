@@ -89,6 +89,7 @@ struct EntityStore {
 
 struct Command {
     CommandType type;
+    EntitySource source;
     const char* entity_id;
     uint8_t entity_idx;
     uint8_t value;
@@ -103,7 +104,7 @@ void store_set_alexa_state(EntityStore* store, ConnState state);
 void store_update_value(EntityStore* store, uint8_t entity_idx, uint8_t value);
 void store_update_weather(EntityStore* store, uint8_t entity_idx, const WeatherState& weather);
 void store_send_command(EntityStore* store, uint8_t entity_idx, uint8_t value);
-bool store_get_pending_command(EntityStore* store, Command* command);
+bool store_get_pending_command(EntityStore* store, Command* command, EntitySource source);
 void store_ack_pending_command(EntityStore* store, const Command* command);
 void store_update_ui_state(EntityStore* store, const Screen* screen, UIState* ui_state);
 void store_wait_for_wifi_up(EntityStore* store);
