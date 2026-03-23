@@ -192,6 +192,17 @@ bool ConfigStore::_serializeToJson(String& output) {
         }
     }
 
+    // Alexa known devices
+    JsonArray alexa_devs_out = doc["alexa_devices"].to<JsonArray>();
+    for (int i = 0; i < _config.alexa_device_count; i++) {
+        JsonObject d = alexa_devs_out.add<JsonObject>();
+        d["entity_id"] = _config.alexa_devices[i].entity_id;
+        d["friendly_name"] = _config.alexa_devices[i].friendly_name;
+        d["type"] = _config.alexa_devices[i].type;
+        d["has_brightness"] = _config.alexa_devices[i].has_brightness;
+        d["reachable"] = _config.alexa_devices[i].reachable;
+    }
+
     serializeJson(doc, output);
     return true;
 }
@@ -262,6 +273,19 @@ bool ConfigStore::_deserializeFromJson(const char* json, size_t len) {
         strlcpy(dev.owm_units, d["owm_units"] | "imperial", sizeof(dev.owm_units));
     }
 
+    // Alexa known devices
+    JsonArray alexa_devs = doc["alexa_devices"];
+    _config.alexa_device_count = 0;
+    for (JsonObject d : alexa_devs) {
+        if (_config.alexa_device_count >= MAX_ALEXA_DEVICES) break;
+        AlexaKnownDevice& dev = _config.alexa_devices[_config.alexa_device_count++];
+        strlcpy(dev.entity_id, d["entity_id"] | "", sizeof(dev.entity_id));
+        strlcpy(dev.friendly_name, d["friendly_name"] | "", sizeof(dev.friendly_name));
+        strlcpy(dev.type, d["type"] | "switch", sizeof(dev.type));
+        dev.has_brightness = d["has_brightness"] | false;
+        dev.reachable = d["reachable"] | false;
+    }
+
     return true;
 }
 
@@ -269,5 +293,12 @@ void ConfigStore::updateKnownDevices(const KnownDevice* devices, int count) {
     if (count > MAX_KNOWN_DEVICES) count = MAX_KNOWN_DEVICES;
     memcpy(_config.known_devices, devices, count * sizeof(KnownDevice));
     _config.known_device_count = count;
+    save();
+}
+
+void ConfigStore::updateAlexaDevices(const AlexaKnownDevice* devices, int count) {
+    if (count > MAX_ALEXA_DEVICES) count = MAX_ALEXA_DEVICES;
+    memcpy(_config.alexa_devices, devices, count * sizeof(AlexaKnownDevice));
+    _config.alexa_device_count = count;
     save();
 }

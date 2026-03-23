@@ -118,7 +118,7 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
         </div>
         <div id="alexa-auth-result"></div>
         <div style="margin-top:12px">
-            <button class="btn btn-sm" onclick="alexaDiscover()">Discover Alexa Devices</button>
+            <button class="btn btn-sm" onclick="alexaDiscover()">Refresh from Alexa</button>
         </div>
         <div id="alexa-discover-list"></div>
     </div>
@@ -320,6 +320,14 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
     }
     alexaCheckStatus();
 
+    function alexaLoadCached() {
+        fetch('/api/alexa/devices').then(r => r.json()).then(data => {
+            const devices = data.devices || [];
+            if (devices.length > 0) alexaRenderDevices(devices);
+        }).catch(() => {});
+    }
+    alexaLoadCached();
+
     function alexaStartAuth() {
         fetch('/api/alexa/auth/start')
             .then(r => r.json()).then(d => {
@@ -348,27 +356,30 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
         }).catch(e => { document.getElementById('alexa-auth-result').innerHTML = '<p class="error">Auth request failed</p>'; });
     }
 
+    function alexaRenderDevices(devices) {
+        let html = '<table class="discover-table"><tr><th></th><th>Name</th><th>Type</th><th>Status</th></tr>';
+        devices.forEach(d => {
+            const added = activeDevices.find(a => a.entity_id === d.entity_id);
+            const widgetGuess = d.has_brightness ? 'slider' : 'button';
+            const statusClass = d.reachable ? 'dev-state-on' : 'dev-state-off';
+            const statusText = d.reachable ? 'Online' : 'Offline';
+            html += '<tr' + (d.reachable ? '' : ' class="hidden-dev"') + '>';
+            html += '<td>' + (added ? '<span style="color:#2e7d32">Added</span>' :
+                '<button class="btn btn-sm btn-outline" onclick="addAlexaDevice(\'' + esc(d.entity_id) + '\',\'' + esc(d.friendly_name) + '\',\'' + widgetGuess + '\')">Add</button>') + '</td>';
+            html += '<td>' + esc(d.friendly_name) + '</td>';
+            html += '<td><small>' + d.type + '</small></td>';
+            html += '<td><span class="dev-state ' + statusClass + '">' + statusText + '</span></td>';
+            html += '</tr>';
+        });
+        html += '</table>';
+        document.getElementById('alexa-discover-list').innerHTML = html;
+    }
+
     function alexaDiscover() {
         document.getElementById('alexa-discover-list').innerHTML = '<p>Discovering...</p>';
         fetch('/api/alexa/discover').then(r => r.json()).then(data => {
             if (data.error) { document.getElementById('alexa-discover-list').innerHTML = '<p class="error">' + data.error + '</p>'; return; }
-            const devices = data.devices || [];
-            let html = '<table class="discover-table"><tr><th></th><th>Name</th><th>Type</th><th>Status</th></tr>';
-            devices.forEach(d => {
-                const added = activeDevices.find(a => a.entity_id === d.entity_id);
-                const widgetGuess = d.has_brightness ? 'slider' : 'button';
-                const statusClass = d.reachable ? 'dev-state-on' : 'dev-state-off';
-                const statusText = d.reachable ? 'Online' : 'Offline';
-                html += '<tr' + (d.reachable ? '' : ' class="hidden-dev"') + '>';
-                html += '<td>' + (added ? '<span style="color:#2e7d32">Added</span>' :
-                    '<button class="btn btn-sm btn-outline" onclick="addAlexaDevice(\'' + esc(d.entity_id) + '\',\'' + esc(d.friendly_name) + '\',\'' + widgetGuess + '\')">Add</button>') + '</td>';
-                html += '<td>' + esc(d.friendly_name) + '</td>';
-                html += '<td><small>' + d.type + '</small></td>';
-                html += '<td><span class="dev-state ' + statusClass + '">' + statusText + '</span></td>';
-                html += '</tr>';
-            });
-            html += '</table>';
-            document.getElementById('alexa-discover-list').innerHTML = html;
+            alexaRenderDevices(data.devices || []);
         }).catch(e => { document.getElementById('alexa-discover-list').innerHTML = '<p class="error">Discovery failed</p>'; });
     }
 
@@ -785,10 +796,43 @@ static void handle_alexa_discover() {
         }
     }
 
+    // Persist discovered devices to NVS cache
+    int dev_count = std::min((int)devices.size(), (int)MAX_ALEXA_DEVICES);
+    AlexaKnownDevice cache[MAX_ALEXA_DEVICES] = {};
+    for (int i = 0; i < dev_count; i++) {
+        JsonObject d = devices[i];
+        strlcpy(cache[i].entity_id, d["entity_id"] | "", sizeof(cache[i].entity_id));
+        strlcpy(cache[i].friendly_name, d["friendly_name"] | "", sizeof(cache[i].friendly_name));
+        strlcpy(cache[i].type, d["type"] | "switch", sizeof(cache[i].type));
+        cache[i].has_brightness = d["has_brightness"] | false;
+        cache[i].reachable = d["reachable"] | false;
+    }
+    store->updateAlexaDevices(cache, dev_count);
+
     String json;
     serializeJson(out_doc, json);
     server->send(200, "application/json", json);
-    ESP_LOGI(TAG, "Alexa discovery returned %d devices", devices.size());
+    ESP_LOGI(TAG, "Alexa discovery returned %d devices (cached to NVS)", devices.size());
+}
+
+// Return cached Alexa devices (no API call, instant)
+static void handle_alexa_get_devices() {
+    const AppConfig& cfg = store->config();
+    JsonDocument doc;
+    JsonArray devices = doc["devices"].to<JsonArray>();
+
+    for (int i = 0; i < cfg.alexa_device_count; i++) {
+        JsonObject d = devices.add<JsonObject>();
+        d["entity_id"] = cfg.alexa_devices[i].entity_id;
+        d["friendly_name"] = cfg.alexa_devices[i].friendly_name;
+        d["type"] = cfg.alexa_devices[i].type;
+        d["has_brightness"] = cfg.alexa_devices[i].has_brightness;
+        d["reachable"] = cfg.alexa_devices[i].reachable;
+    }
+
+    String json;
+    serializeJson(doc, json);
+    server->send(200, "application/json", json);
 }
 
 void config_server_start(ConfigStore* config_store) {
@@ -807,6 +851,7 @@ void config_server_start(ConfigStore* config_store) {
     server->on("/api/alexa/status", HTTP_GET, handle_alexa_status);
     server->on("/api/alexa/auth/start", HTTP_GET, handle_alexa_auth_start);
     server->on("/api/alexa/auth/callback", HTTP_POST, handle_alexa_auth_callback);
+    server->on("/api/alexa/devices", HTTP_GET, handle_alexa_get_devices);
     server->on("/api/alexa/discover", HTTP_GET, handle_alexa_discover);
 
     server->on("/api/icons", HTTP_GET, []() {

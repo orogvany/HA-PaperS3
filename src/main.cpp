@@ -205,7 +205,7 @@ void setup() {
     // Connect to Alexa (if configured)
     alexa_task_args.store = &store;
     alexa_task_args.config_store = &config_store;
-    xTaskCreate(alexa_manager_task, "alexa", 12288, &alexa_task_args, 1, &store.alexa_task);
+    xTaskCreatePinnedToCore(alexa_manager_task, "alexa", 12288, &alexa_task_args, 1, &store.alexa_task, 1);
 
     // Launch touch task
     touch_task_args.bbct = &bbct;

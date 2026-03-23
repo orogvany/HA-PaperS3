@@ -7,6 +7,7 @@ constexpr int CONFIG_VERSION = 3;
 
 // Maximum number of devices we can track
 constexpr int MAX_KNOWN_DEVICES = 64;
+constexpr int MAX_ALEXA_DEVICES = 24;
 constexpr int MAX_UI_DEVICES = 8;
 
 // Device info from HA discovery
@@ -14,7 +15,16 @@ struct KnownDevice {
     char entity_id[64];
     char friendly_name[48];
     char domain[16];          // "light", "switch", "fan", etc.
-    bool online;              // Reachable/available
+    bool online;
+};
+
+// Device info from Alexa discovery
+struct AlexaKnownDevice {
+    char entity_id[64];
+    char friendly_name[48];
+    char type[16];            // "light" or "switch"
+    bool has_brightness;
+    bool reachable;
 };
 
 // Device configured for display in our UI
@@ -65,9 +75,13 @@ struct AppConfig {
     UIDevice ui_devices[MAX_UI_DEVICES];
     int ui_device_count;
 
+    // Alexa known devices (from Alexa discovery, cached)
+    AlexaKnownDevice alexa_devices[MAX_ALEXA_DEVICES];
+    int alexa_device_count;
+
     // Alexa
     bool alexa_enabled;
-    char alexa_domain[32];    // "amazon.com", "amazon.co.uk", etc.
+    char alexa_domain[32];
 
     // Security
     bool pin_enabled;
@@ -102,6 +116,9 @@ public:
 
     // Update known devices from HA discovery results
     void updateKnownDevices(const KnownDevice* devices, int count);
+
+    // Update known Alexa devices from discovery results
+    void updateAlexaDevices(const AlexaKnownDevice* devices, int count);
 
 private:
     AppConfig _config = {};
