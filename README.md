@@ -20,16 +20,23 @@ You will need to install [PlatformIO](https://platformio.org/) to compile the pr
 
 ### 1. Generate icons
 
-Find the icons for your buttons at [Pictogrammers](https://pictogrammers.com/library/mdi/).
-Use "Download PNG (256x256)" and place your icons in the `icons-buttons` folder.
-Make sure you have an icon for the "on" state and one for the "off" state of each of your buttons.
+The project includes 38 device icons (Cupertino style) and 15 weather icons (Meteocons monochrome), organized by category:
 
-Then run the python script to generate `src/assets/icons.h`:
+- `icons-buttons/` — Device icons (on/off pairs, e.g. `lightbulb.png` / `lightbulb-off.png`)
+- `icons-weather/` — Weather condition icons
+- `icons-chrome/` — UI chrome (gear icon)
+- `icons-statusbar/` — Status bar indicators (WiFi, HA, Alexa disconnected)
+- `icons-ui/` — Full-screen UI icons (alerts, logos)
+
+To regenerate `src/assets/icons.h` and the web UI icon manifest:
 
 ```
-pip install Pillow
+pip install Pillow cairosvg
 python3 generate-icons.py
+python3 scripts/generate_icon_manifest.py
 ```
+
+To add custom icons, place 256x256 PNGs in the appropriate folder. Naming convention: `{name}.png` for on/active state, `{name}-off.png` for off/inactive state.
 
 ### 2. Get a Home Assistant token
 
