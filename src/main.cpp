@@ -190,7 +190,7 @@ void setup() {
     ui_task_args.store = &store;
     ui_task_args.shared_state = &shared_ui_state;
     ui_task_args.ha_url = config_store.config().ha_url;
-    xTaskCreate(ui_task, "ui", 4096, &ui_task_args, 1, &store.ui_task);
+    xTaskCreatePinnedToCore(ui_task, "ui", 4096, &ui_task_args, 1, &store.ui_task, 1);
 
     // Connect to wifi and launch watcher
     launch_wifi(&config, &store);
@@ -200,7 +200,7 @@ void setup() {
     hass_task_args.config_store = &config_store;
     hass_task_args.store = &store;
     hass_task_args.epaper = &epaper;
-    xTaskCreate(ha_rest_manager_task, "ha_rest", 8192, &hass_task_args, 1, &store.home_assistant_task);
+    xTaskCreatePinnedToCore(ha_rest_manager_task, "ha_rest", 8192, &hass_task_args, 1, &store.home_assistant_task, 1);
 
     // Connect to Alexa (if configured)
     alexa_task_args.store = &store;
@@ -213,11 +213,11 @@ void setup() {
     touch_task_args.state = &shared_ui_state;
     touch_task_args.store = &store;
     touch_task_args.config_store = &config_store;
-    xTaskCreate(touch_task, "touch", 16384, &touch_task_args, 1, nullptr);
+    xTaskCreatePinnedToCore(touch_task, "touch", 16384, &touch_task_args, 1, nullptr, 1);
 
     // Launch battery monitoring task
     battery_task_args.store = &store;
-    xTaskCreate(battery_task, "battery", 2048, &battery_task_args, 1, nullptr);
+    xTaskCreatePinnedToCore(battery_task, "battery", 2048, &battery_task_args, 1, nullptr, 1);
 }
 
 void loop() {

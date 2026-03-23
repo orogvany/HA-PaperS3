@@ -22,6 +22,12 @@ Licensed under Apache License 2.0.
 
 ## Icons
 
+[HomeAssistant-Cupertino-Icons](https://github.com/menahishayan/HomeAssistant-Cupertino-Icons) by Menahi Shayan.
+Licensed under MIT License. Copyright (c) 2026 Menahi Shayan.
+
+[Meteocons](https://github.com/basmilius/weather-icons) by Bas Milius.
+Licensed under MIT License. Used for weather condition icons (monochrome set).
+
 [Material Design Icons](https://github.com/Templarian/MaterialDesign) by Pictogrammers.
 Licensed under Apache License 2.0.
 https://pictogrammers.com/library/mdi/
@@ -39,3 +45,4 @@ Converted using [fontconvert from FastEPD](https://github.com/bitbank2/FastEPD/t
 - [bb_captouch](https://github.com/bitbank2/bb_captouch) by Larry Bank (bitbank2)
 - [ArduinoJson](https://github.com/bblanchon/ArduinoJson) by Benoit Blanchon
 - [WiFiManager](https://github.com/tzapu/WiFiManager) by tzapu
+- [alexa-esp32](lib/alexa-esp32/) based on [alexapy](https://gitlab.com/keatontaylor/alexapy) by alandtse, keatontaylor. Licensed under Apache License 2.0.

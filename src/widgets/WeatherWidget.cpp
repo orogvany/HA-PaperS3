@@ -64,37 +64,25 @@ void WeatherWidget::fullDraw(FASTEPD* display, BitDepth depth, const EntityValue
     display->setTextColor(BBEP_BLACK);
 
     // Condition icon (left side)
-    uint16_t icon_x = rect_.x;
+    uint16_t icon_x = rect_.x - 12;
     uint16_t icon_y = rect_.y - 22;
     display->loadBMP(condition_icon(w.condition), icon_x, icon_y, 0xf, BBEP_BLACK);
 
-    // Temperature + condition text (right of icon)
+    // Line 1: temp + humidity (right of icon)
     uint16_t text_x = icon_x + ICON_SIZE + ICON_GAP;
 
-    char temp_buf[16];
-    snprintf(temp_buf, sizeof(temp_buf), "%d°%c", w.current_temp, w.temp_unit);
-    display->setCursor(text_x, rect_.y + 36);
-    display->write(temp_buf);
-
-    BB_RECT tr;
-    display->getStringBox(temp_buf, &tr);
-    display->setCursor(text_x + tr.w + 16, rect_.y + 36);
-    display->write(condition_label(w.condition));
-
-    // Second line: humidity + high/low
-    char detail_buf[32] = {};
-    int pos = 0;
+    char line1[32];
     if (w.humidity > 0) {
-        pos += snprintf(detail_buf + pos, sizeof(detail_buf) - pos, "%d%%", w.humidity);
+        snprintf(line1, sizeof(line1), "%d°%c %d%%", w.current_temp, w.temp_unit, w.humidity);
+    } else {
+        snprintf(line1, sizeof(line1), "%d°%c", w.current_temp, w.temp_unit);
     }
-    if (w.high_temp != 0 || w.low_temp != 0) {
-        if (pos > 0) pos += snprintf(detail_buf + pos, sizeof(detail_buf) - pos, "  ");
-        snprintf(detail_buf + pos, sizeof(detail_buf) - pos, "H:%d° L:%d°", w.high_temp, w.low_temp);
-    }
-    if (detail_buf[0]) {
-        display->setCursor(text_x, rect_.y + 74);
-        display->write(detail_buf);
-    }
+    display->setCursor(text_x, rect_.y + 36);
+    display->write(line1);
+
+    // Line 2: condition
+    display->setCursor(text_x, rect_.y + 74);
+    display->write(condition_label(w.condition));
 }
 
 Rect WeatherWidget::partialDraw(FASTEPD* display, BitDepth depth, const EntityValue& from, const EntityValue& to) {
