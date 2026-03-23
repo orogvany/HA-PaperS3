@@ -271,14 +271,16 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
                 return;
             }
             const activeIds = activeDevices.map(d => d.entity_id);
-            let html = '<table class="discover-table"><tr><th></th><th>Name</th><th>Domain</th><th>State</th></tr>';
+            let html = '<table class="discover-table"><tr><th></th><th></th><th>Name</th><th>Domain</th><th>State</th></tr>';
             devices.forEach(d => {
                 const added = activeIds.includes(d.entity_id);
                 const stateClass = (d.state === 'on' || d.state === 'playing' || d.state === 'open') ? 'dev-state-on' : 'dev-state-off';
                 const widgetGuess = d.domain === 'weather' ? 'weather' : ['light','fan','cover','input_number','media_player'].includes(d.domain) ? 'slider' : 'button';
+                const [defIcon] = defaultIcons(d.domain);
                 html += '<tr>';
                 html += '<td>' + (added ? '<span style="color:#2e7d32">Added</span>' :
                     '<button class="btn btn-sm btn-outline" onclick="addDevice(\'' + esc(d.entity_id) + '\',\'' + esc(d.friendly_name) + '\',\'' + widgetGuess + '\')">Add</button>') + '</td>';
+                html += '<td>' + iconPreview(defIcon) + '</td>';
                 html += '<td>' + esc(d.friendly_name) + '</td>';
                 html += '<td><small>' + d.domain + '</small></td>';
                 html += '<td><span class="dev-state ' + stateClass + '">' + d.state + '</span></td>';
@@ -293,7 +295,20 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
         const map = {
             light: ['lightbulb', 'lightbulb_off'],
             fan: ['fan', 'fan_off'],
-            vacuum: ['robot', 'robot_off'],
+            switch: ['outlet', 'outlet_off'],
+            cover: ['blinds', 'blinds_off'],
+            lock: ['lock', 'lock_off'],
+            media_player: ['speaker', 'speaker_off'],
+            climate: ['air_conditioner', 'air_conditioner_off'],
+            sensor: ['thermometer', 'thermometer_off'],
+            binary_sensor: ['sensor', 'sensor_off'],
+            scene: ['house', 'house_off'],
+            script: ['bolt', 'bolt_off'],
+            automation: ['bolt', 'bolt_off'],
+            input_boolean: ['light_switch', 'light_switch_off'],
+            input_number: ['power', 'power_off'],
+            vacuum: ['fan', 'fan_off'],
+            weather: ['default', 'default_off'],
         };
         return map[domain] || ['lightbulb', 'lightbulb_off'];
     }
@@ -356,16 +371,23 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
         }).catch(e => { document.getElementById('alexa-auth-result').innerHTML = '<p class="error">Auth request failed</p>'; });
     }
 
+    function iconPreview(iconId) {
+        const ico = icons.find(i => i.id === iconId);
+        return ico ? '<img src="' + ico.data + '" width="24" height="24" style="vertical-align:middle">' : '';
+    }
+
     function alexaRenderDevices(devices) {
-        let html = '<table class="discover-table"><tr><th></th><th>Name</th><th>Type</th><th>Status</th></tr>';
+        let html = '<table class="discover-table"><tr><th></th><th></th><th>Name</th><th>Type</th><th>Status</th></tr>';
         devices.forEach(d => {
             const added = activeDevices.find(a => a.entity_id === d.entity_id);
             const widgetGuess = d.has_brightness ? 'slider' : 'button';
+            const [defIcon] = defaultAlexaIcons(d.type);
             const statusClass = d.reachable ? 'dev-state-on' : 'dev-state-off';
             const statusText = d.reachable ? 'Online' : 'Offline';
             html += '<tr' + (d.reachable ? '' : ' class="hidden-dev"') + '>';
             html += '<td>' + (added ? '<span style="color:#2e7d32">Added</span>' :
-                '<button class="btn btn-sm btn-outline" onclick="addAlexaDevice(\'' + esc(d.entity_id) + '\',\'' + esc(d.friendly_name) + '\',\'' + widgetGuess + '\')">Add</button>') + '</td>';
+                '<button class="btn btn-sm btn-outline" onclick="addAlexaDevice(\'' + esc(d.entity_id) + '\',\'' + esc(d.friendly_name) + '\',\'' + widgetGuess + '\',\'' + esc(d.type) + '\')">Add</button>') + '</td>';
+            html += '<td>' + iconPreview(defIcon) + '</td>';
             html += '<td>' + esc(d.friendly_name) + '</td>';
             html += '<td><small>' + d.type + '</small></td>';
             html += '<td><span class="dev-state ' + statusClass + '">' + statusText + '</span></td>';
@@ -383,10 +405,19 @@ static const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
         }).catch(e => { document.getElementById('alexa-discover-list').innerHTML = '<p class="error">Discovery failed</p>'; });
     }
 
-    function addAlexaDevice(entityId, name, widgetType) {
+    function defaultAlexaIcons(type) {
+        const map = {
+            light: ['lightbulb', 'lightbulb_off'],
+            switch: ['outlet', 'outlet_off'],
+        };
+        return map[type] || ['lightbulb', 'lightbulb_off'];
+    }
+
+    function addAlexaDevice(entityId, name, widgetType, devType) {
         if (activeDevices.length >= 8) { alert('Max 8 devices'); return; }
         if (activeDevices.find(d => d.entity_id === entityId)) return;
-        activeDevices.push({ entity_id: entityId, label: name, widget_type: widgetType, source: 'alexa', icon_on: 'lightbulb', icon_off: 'lightbulb_off', sort_order: activeDevices.length });
+        const [iconOn, iconOff] = defaultAlexaIcons(devType);
+        activeDevices.push({ entity_id: entityId, label: name, widget_type: widgetType, source: 'alexa', icon_on: iconOn, icon_off: iconOff, sort_order: activeDevices.length });
         renderActive();
         alexaLoadCached();
     }

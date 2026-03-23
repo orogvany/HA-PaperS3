@@ -32,6 +32,8 @@ def main():
 
     for path in sorted(glob.glob(os.path.join(ICONS_DIR, '*.png'))):
         filename = os.path.basename(path)
+        if filename.endswith('-off.png'):
+            continue  # Skip off variants - picker shows on icons, derives off name
         icon_id = filename.replace('.png', '').replace('-', '_')
         title = filename.replace('.png', '').replace('-', ' ').title()
 
