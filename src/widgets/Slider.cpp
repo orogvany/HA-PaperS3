@@ -167,11 +167,24 @@ Rect Slider::partialDraw(FASTEPD* display, BitDepth depth, const EntityValue& fr
         }
     }
 
-    // Return the calculated damage
-    const uint16_t x0 = std::min(previous_value_x, value_x);
-    const uint16_t x1 = std::max(previous_value_x, value_x);
+    // Redraw label with appropriate color for new state
+    BB_RECT text_rect;
+    display->setFont(Montserrat_Regular_26);
+    display->getStringBox("pI", &text_rect);
+    uint16_t label_x = rect_.x + BUTTON_SIZE + 30;
+    uint16_t label_y = y + (BUTTON_SIZE + text_rect.h) / 2 - 5;
+    uint16_t fill_end_x = rect_.x;
+    if (to > 0) {
+        fill_end_x = rect_.x + SLIDER_OFFSET + (to * slider_width) / 100;
+    }
 
-    return Rect{static_cast<uint16_t>(rect_.x + x0), y, static_cast<uint16_t>(x1 - x0 + BUTTON_SIZE / 2), BUTTON_SIZE};
+    display->setFont(Montserrat_Regular_26);
+    display->setTextColor(BBEP_BLACK);
+    display->setCursor(label_x, label_y);
+    display->write(label_);
+
+    // Return damage covering full widget width (label may change color anywhere)
+    return Rect{rect_.x, y, rect_.w, BUTTON_SIZE};
 }
 
 void Slider::fullDraw(FASTEPD* display, BitDepth depth, const EntityValue& value) {
@@ -208,7 +221,7 @@ void Slider::fullDraw(FASTEPD* display, BitDepth depth, const EntityValue& value
     } else if (value.range == 0) {
         text_color = BBEP_BLACK;
     } else if (value.range == 100) {
-        text_color = 0xf;
+        text_color = 0xA;
     } else {
         text_color = 0x6;
     }

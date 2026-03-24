@@ -140,10 +140,11 @@ int build_widgets_from_config(const AppConfig& app, EntityStore* store, Screen* 
 
     // Auto-layout: stack widgets vertically
     constexpr uint16_t margin = 30;
-    constexpr uint16_t slider_height = 170;
-    constexpr uint16_t button_spacing = 140; // Button height + gap
+    constexpr uint16_t status_bar_height = 50;
+    constexpr uint16_t slider_height = 100;
+    constexpr uint16_t button_spacing = 140;
     constexpr uint16_t slider_spacing = slider_height + 40;
-    uint16_t y = margin;
+    uint16_t y = status_bar_height;
 
     constexpr uint16_t weather_height = 160;
     constexpr uint16_t weather_spacing = weather_height + 20;
