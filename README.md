@@ -89,13 +89,16 @@ pio run -e lilygo-t5-s3 --target upload
 - **PIN gate**: Optional 4-digit PIN for settings access
 - **NVS config versioning**: Breaking config changes auto-wipe with clean reconfigure
 
-### Updating the font
+### Updating fonts
 
-The font used is Montserrat Regular in size 26, it was converted
-using [fontconvert from FastEPD](https://github.com/bitbank2/FastEPD/tree/main/fontconvert):
+Fonts are generated using [fontconvert from FastEPD](https://github.com/bitbank2/FastEPD/tree/main/fontconvert):
 
 ```
-./fontconvert Montserrat-Regular.ttf `src/assets/Montserrat_Regular_26.h` 26 32 126
+# Main UI font (full ASCII range)
+./fontconvert Montserrat-Regular.ttf src/assets/Montserrat_Regular_26.h 26 32 126
+
+# Battery percentage font (digits 0-9 and % only, compact)
+./fontconvert Montserrat-Regular.ttf src/assets/Montserrat_Regular_14.h 14 37 57
 ```
 
 ## License

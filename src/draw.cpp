@@ -1,5 +1,6 @@
 #include "draw.h"
 #include "assets/icons.h"
+#include "assets/Montserrat_Regular_14.h"
 #include "assets/Montserrat_Regular_26.h"
 #include "boards.h"
 #include <FastEPD.h>
@@ -64,10 +65,10 @@ void drawStatusBar(FASTEPD* epaper, bool wifi_connected, bool ha_connected,
             batt_section_w = BATT_ICON_W + BATT_TIP_W + 6 + 14;
         } else {
             snprintf(label, sizeof(label), "%d%%", battery_pct);
-            epaper->setFont(Montserrat_Regular_26);
+            epaper->setFont(Montserrat_Regular_14);
             epaper->setTextColor(BBEP_BLACK);
             epaper->getStringBox(label, &text_rect);
-            batt_section_w = BATT_ICON_W + BATT_TIP_W + 6 + text_rect.w;
+            batt_section_w = BATT_ICON_W + BATT_TIP_W + 4 + text_rect.w;
         }
     }
 
@@ -121,7 +122,7 @@ void drawStatusBar(FASTEPD* epaper, bool wifi_connected, bool ha_connected,
             epaper->fillRect(x + BATT_BORDER, y + BATT_BORDER, fill_w, BATT_ICON_H - 2 * BATT_BORDER, BBEP_BLACK);
         }
 
-        uint16_t after_icon_x = x + BATT_ICON_W + BATT_TIP_W + 6;
+        uint16_t after_icon_x = x + BATT_ICON_W + BATT_TIP_W + 4;
         if (battery_charging) {
             uint16_t bx = after_icon_x;
             uint16_t by = y;
@@ -131,9 +132,9 @@ void drawStatusBar(FASTEPD* epaper, bool wifi_connected, bool ha_connected,
             epaper->drawLine(bx + 4, by + 6, bx,     by + 13, BBEP_BLACK);
             epaper->drawLine(bx + 5, by + 6, bx + 1, by + 13, BBEP_BLACK);
         } else {
-            epaper->setFont(Montserrat_Regular_26);
+            epaper->setFont(Montserrat_Regular_14);
             epaper->setTextColor(BBEP_BLACK);
-            epaper->setCursor(after_icon_x, y + (BATT_ICON_H + text_rect.h) / 2 - 2);
+            epaper->setCursor(after_icon_x, y + (BATT_ICON_H + text_rect.h) / 2 - 1);
             epaper->write(label);
         }
     }
