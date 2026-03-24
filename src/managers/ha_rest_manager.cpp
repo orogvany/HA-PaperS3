@@ -206,7 +206,11 @@ void ha_rest_manager_task(void* arg) {
                 ESP_LOGI(TAG, "Touch detected, reconnecting WiFi...");
                 WiFi.mode(WIFI_STA);
                 if (FEATURE_WIFI_MODEM_SLEEP) WiFi.setSleep(WIFI_PS_MIN_MODEM);
-                WiFi.begin(ctx->config->wifi_ssid, ctx->config->wifi_password);
+                if (ctx->config->wifi_ssid[0] != '\0') {
+                    WiFi.begin(ctx->config->wifi_ssid, ctx->config->wifi_password);
+                } else {
+                    WiFi.begin();
+                }
                 wifi_is_off = false;
                 store_wait_for_wifi_up(store);
 

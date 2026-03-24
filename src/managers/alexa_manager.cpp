@@ -107,11 +107,7 @@ static bool send_alexa_command(Command* cmd) {
         brightness = cmd->value;
     }
 
-    wake_lock_acquire();
-    bool ok = api.setLightState(cmd->entity_id, power_on, brightness);
-    wake_lock_release();
-
-    return ok;
+    return api.setLightState(cmd->entity_id, power_on, brightness);
 }
 
 void alexa_manager_task(void* arg) {
@@ -168,21 +164,38 @@ void alexa_manager_task(void* arg) {
     store_set_alexa_state(store, ConnState::Up);
     ESP_LOGI(TAG, "Alexa connected, initial state sync complete");
 
-    const uint32_t poll_interval = 60000;
+    constexpr uint32_t ALEXA_POLL_INTERVAL_MS = 60000;
     Command command;
+    uint32_t last_poll_ms = millis();
 
     while (1) {
-        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(poll_interval));
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ALEXA_POLL_INTERVAL_MS));
 
+        // Don't do anything if WiFi is idle-disconnected
+        if (store_get_wifi_idle(store)) continue;
+
+        // Process pending commands
+        bool had_commands = false;
         while (store_get_pending_command(store, &command, EntitySource::Alexa)) {
-            if (send_alexa_command(&command)) {
+            had_commands = true;
+            wake_lock_acquire();
+            bool ok = send_alexa_command(&command);
+            if (ok) {
                 store_ack_pending_command(store, &command);
             }
             wake_lock_release();
         }
+        if (had_commands) {
+            wake_lock_release();
+        }
 
-        wake_lock_acquire();
-        poll_alexa_states(store);
-        wake_lock_release();
+        // Periodic state polling
+        uint32_t now = millis();
+        if (now - last_poll_ms >= ALEXA_POLL_INTERVAL_MS) {
+            wake_lock_acquire();
+            poll_alexa_states(store);
+            wake_lock_release();
+            last_poll_ms = now;
+        }
     }
 }
